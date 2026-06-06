@@ -1,0 +1,101 @@
+.home { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* HERO */
+.hero {
+  background: linear-gradient(135deg, var(--azul) 0%, var(--azul-dark) 60%, var(--rojo) 100%);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 1.5rem;
+  color: white;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 8px;
+  background: var(--amarillo);
+}
+.hero-content { max-width: 700px; margin: 0 auto; }
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 900;
+  margin-bottom: 0.7rem;
+  line-height: 1.1;
+}
+.hero p {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.95;
+}
+.hero-search input {
+  font-size: 1.05rem;
+  padding: 0.9rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+/* CATEGORÍAS RÁPIDAS */
+.categories-quick {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0.3rem 0;
+  scrollbar-width: thin;
+}
+.cat-chip {
+  flex-shrink: 0;
+  padding: 0.6rem 1.1rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.cat-chip:hover { border-color: var(--azul); color: var(--azul); }
+.cat-chip.active {
+  background: var(--azul);
+  color: white;
+  border-color: var(--azul);
+}
+
+/* FILTROS */
+.filters {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+.filters-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .filters-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .filters-grid { grid-template-columns: 2fr 2fr 1fr 1fr 2fr 1fr; }
+}
+
+/* RESULTADOS */
+.results-header h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.offers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.2rem;
+}
+@media (max-width: 480px) {
+  .offers-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; }
+}
