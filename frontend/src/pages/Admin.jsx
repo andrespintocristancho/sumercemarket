@@ -1,7 +1,7 @@
 // Admin.jsx
 // Panel de administración básico.
 // Acceso restringido a usuarios con profile.role === 'admin'.
-// Datos directos desde Supabase: profiles, offers, whatsapp_clicks.
+// Datos directos desde Supabase: profiles, offers, contact_events.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -47,7 +47,7 @@ export default function Admin() {
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'paused'),
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'sold'),
-        supabase.from('whatsapp_clicks').select('id', { count: 'exact', head: true }),
+        supabase.from('contact_events').select('id', { count: 'exact', head: true }),
         supabase
           .from('offers')
           .select('id, title, category, price, city, department, status, created_at, user_id')
@@ -525,7 +525,7 @@ function mapError(msg) {
     return 'No tienes permisos para leer estos datos. Verifica las políticas RLS para el rol admin.';
   }
   if (m.includes('relation') && m.includes('does not exist')) {
-    return 'Falta alguna tabla esperada (profiles, offers, offer_images o whatsapp_clicks).';
+    return 'Falta alguna tabla esperada (profiles, offers, offer_images o contact_events).';
   }
   return msg || 'No fue posible cargar el panel.';
 }
