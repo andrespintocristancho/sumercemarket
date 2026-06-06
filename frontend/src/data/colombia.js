@@ -66,3 +66,36 @@ export function isValidLocation(department, city) {
 export function isValidColombianPhone(phone) {
   return /^3\d{9}$/.test(String(phone || '').trim());
 }
+
+// Formatea un número COL a "300 123 4567" (solo presentación visual)
+export function formatPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length !== 10) return phone || '';
+  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+}
+
+// Construye URL de WhatsApp con prefijo +57 y mensaje opcional
+export function buildWhatsAppLink(phone, message = '') {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length !== 10) return null;
+  const full = `57${digits}`;
+  const text = encodeURIComponent(message || '');
+  return `https://wa.me/${full}${text ? `?text=${text}` : ''}`;
+}
+
+// Categorías canónicas para el marketplace
+export const CATEGORIES = [
+  'Vehículos',
+  'Inmuebles',
+  'Tecnología',
+  'Hogar',
+  'Electrodomésticos',
+  'Moda',
+  'Belleza y salud',
+  'Deportes',
+  'Bebés y niños',
+  'Mascotas',
+  'Servicios',
+  'Empleos',
+  'Otros'
+];
