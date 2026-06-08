@@ -2,7 +2,9 @@
 // Tarjeta reutilizable para mostrar una oferta. Acepta acciones opcionales
 // (editar/eliminar/cambiar estado) cuando el dueño la visualiza desde MyOffers.
 
+import { Link } from 'react-router-dom';
 import { buildWhatsAppLink, formatPhone } from '../data/colombia.js';
+import { supabase } from '../services/supabase.js';
 
 export default function OfferCard({
   offer,
@@ -21,20 +23,61 @@ export default function OfferCard({
     : null;
 
   const status = offer.status || 'active';
+  const detailHref = offer.id != null ? `/offers/${offer.id}` : null;
+
+  async function handleWhatsAppClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!waLink) return;
+
+    // Registrar evento en contact_events antes de abrir WhatsApp.
+    // Si falla, no bloqueamos al usuario: igual abrimos el enlace.
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id ?? null;
+      await supabase.from('contact_events').insert({
+        offer_id: offer.id,
+        user_id: userId,
+        channel: 'whatsapp',
+        source: 'offer_card'
+      });
+    } catch (err) {
+      // Silenciar: no impedir el contacto si la métrica falla
+      console.warn('No se pudo registrar contact_event:', err);
+    }
+
+    window.open(waLink, '_blank', 'noopener,noreferrer');
+  }
 
   return (
     <article className="card" style={styles.card}>
       <div style={styles.imgWrap}>
-        {mainImage ? (
-          <img src={mainImage} alt={offer.title} style={styles.img} loading="lazy" />
+        {detailHref ? (
+          <Link to={detailHref} style={styles.imgLink} aria-label={`Ver detalle de ${offer.title}`}>
+            {mainImage ? (
+              <img src={mainImage} alt={offer.title} style={styles.img} loading="lazy" />
+            ) : (
+              <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
+            )}
+          </Link>
         ) : (
-          <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
+          mainImage ? (
+            <img src={mainImage} alt={offer.title} style={styles.img} loading="lazy" />
+          ) : (
+            <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
+          )
         )}
         <StatusBadge status={status} />
       </div>
 
       <div style={styles.body}>
-        <h3 style={styles.title} title={offer.title}>{offer.title}</h3>
+        <h3 style={styles.title} title={offer.title}>
+          {detailHref ? (
+            <Link to={detailHref} style={styles.titleLink}>{offer.title}</Link>
+          ) : (
+            offer.title
+          )}
+        </h3>
         <div style={styles.price}>{formatPrice(offer.price)}</div>
 
         <div style={styles.meta}>
@@ -45,16 +88,20 @@ export default function OfferCard({
         </div>
 
         <div style={styles.actions}>
+          {detailHref && (
+            <Link to={detailHref} className="btn btn-ghost" style={styles.detailBtn}>
+              👁️ Ver detalle
+            </Link>
+          )}
           {waLink ? (
-            <a
+            <button
+              type="button"
               className="btn"
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={handleWhatsAppClick}
               style={styles.waBtn}
             >
               💬 WhatsApp
-            </a>
+            </button>
           ) : phone ? (
             <span style={styles.phoneText}>{formatPhone(phone)}</span>
           ) : (
@@ -150,6 +197,12 @@ const styles = {
     background: '#f3f4f6',
     overflow: 'hidden'
   },
+  imgLink: {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    textDecoration: 'none'
+  },
   img: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   imgPlaceholder: {
     width: '100%',
@@ -187,6 +240,7 @@ const styles = {
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical'
   },
+  titleLink: { color: 'inherit', textDecoration: 'none' },
   price: { fontSize: 18, fontWeight: 800, color: '#16a34a' },
   meta: {
     display: 'flex',
@@ -210,9 +264,11 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    marginTop: 8
+    marginTop: 8,
+    flexWrap: 'wrap'
   },
-  waBtn: { background: '#25D366', borderColor: '#25D366' },
+  detailBtn: { textDecoration: 'none' },
+  waBtn: { background: '#25D366', borderColor: '#25D366', color: '#fff' },
   phoneText: { fontSize: 12, color: '#6b7280' },
   muted: { fontSize: 13, color: '#9ca3af' },
   ownerActions: {
