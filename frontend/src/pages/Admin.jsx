@@ -17,6 +17,14 @@
 // - Se usa .select() en el UPDATE para detectar fallos silenciosos
 //   por RLS (0 filas afectadas sin error explícito).
 // - Los errores de Supabase se muestran en el banner de error de la UI.
+//
+// Nuevo:
+// - Botón "Marcar vendida" para ofertas en estado 'active' o 'paused'
+//   (escribe offers.status = 'sold').
+// - Botón "Reactivar" para ofertas en estado 'sold'
+//   (escribe offers.status = 'active').
+// - Ambas acciones usan el mismo flujo de persistencia + refresco
+//   que el toggle Pausar/Activar.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -52,6 +60,7 @@ export default function Admin() {
 
   // Estado de acción por fila (para deshabilitar el botón mientras se guarda)
   const [togglingId, setTogglingId] = useState(null);
+  const [sellingId, setSellingId] = useState(null);
 
   // Debug en desarrollo
   useEffect(() => {
@@ -199,21 +208,41 @@ export default function Admin() {
 
   // ---------- Acciones sobre ofertas ----------
   //
+  // Helper interno: cambia offers.status para una oferta y refresca la lista.
+  // Centraliza el patrón: UPDATE + .select() + detección de RLS + loadAll().
+  // Devuelve true si todo OK, false si hubo error (ya seteado en el banner).
+  const updateOfferStatus = async (offerId, nextStatus) => {
+    const { data, error: upErr } = await supabase
+      .from('offers')
+      .update({ status: nextStatus })
+      .eq('id', offerId)
+      .select('id, status');
+
+    if (upErr) throw upErr;
+
+    // Si RLS bloquea el UPDATE, Supabase devuelve data = [] sin error.
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error(
+        'El cambio no se guardó. Es probable que las políticas RLS de la tabla offers no permitan a tu usuario actualizar la columna status.'
+      );
+    }
+
+    // Refresca la lista desde Supabase para garantizar que el estado
+    // visual coincide con la BD (fuente de verdad).
+    await loadAll();
+    return true;
+  };
+
   // Botón Pausar / Activar.
   // Reglas:
   //  - Solo alterna entre 'active' <-> 'paused'.
-  //  - Si la oferta está 'sold' no se permite el toggle.
+  //  - Si la oferta está 'sold' no se permite el toggle (usar "Reactivar").
   //  - Escribe en la columna `status` de la tabla `offers`.
-  //  - Tras el UPDATE refresca la lista llamando a loadAll() para
-  //    que el estado visual venga de la BD real (persistencia).
-  //  - Si Supabase devuelve error, se muestra en el banner superior.
-  //  - Si el UPDATE no devuelve filas, se asume bloqueo por RLS y
-  //    se reporta como error claro.
   const handleToggleStatus = async (offer) => {
-    if (!offer || togglingId) return;
+    if (!offer || togglingId || sellingId) return;
 
     if (offer.status === 'sold') {
-      setError('No se puede pausar/activar una oferta marcada como vendida.');
+      setError('La oferta está marcada como vendida. Usa "Reactivar" para volver a publicarla.');
       return;
     }
 
@@ -223,24 +252,7 @@ export default function Admin() {
     setError('');
 
     try {
-      const { data, error: upErr } = await supabase
-        .from('offers')
-        .update({ status: nextStatus })
-        .eq('id', offer.id)
-        .select('id, status');
-
-      if (upErr) throw upErr;
-
-      // Si RLS bloquea el UPDATE, Supabase devuelve data = [] sin error.
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error(
-          'El cambio no se guardó. Es probable que las políticas RLS de la tabla offers no permitan a tu usuario actualizar la columna status.'
-        );
-      }
-
-      // Refresca la lista desde Supabase para garantizar que el estado
-      // visual coincide con la BD (fuente de verdad).
-      await loadAll();
+      await updateOfferStatus(offer.id, nextStatus);
     } catch (err) {
       setError(
         'No fue posible cambiar el estado de la oferta: ' +
@@ -248,6 +260,42 @@ export default function Admin() {
       );
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // Botón Marcar vendida / Reactivar.
+  // Reglas:
+  //  - Si la oferta está 'active' o 'paused': pide confirmación y
+  //    escribe offers.status = 'sold'.
+  //  - Si la oferta está 'sold': la reactiva poniendo status = 'active'.
+  //  - Mismo flujo de persistencia + refresco que el toggle.
+  const handleMarkSold = async (offer) => {
+    if (!offer || togglingId || sellingId) return;
+
+    const isSold = offer.status === 'sold';
+    const nextStatus = isSold ? 'active' : 'sold';
+
+    if (!isSold) {
+      const ok = window.confirm(
+        `Marcar la oferta "${offer.title}" como VENDIDA? Esto la retira del listado público y la suma al total vendido (base de comisión).`
+      );
+      if (!ok) return;
+    }
+
+    setSellingId(offer.id);
+    setError('');
+
+    try {
+      await updateOfferStatus(offer.id, nextStatus);
+    } catch (err) {
+      setError(
+        (isSold
+          ? 'No fue posible reactivar la oferta: '
+          : 'No fue posible marcar la oferta como vendida: ') +
+          (err?.message || 'error desconocido')
+      );
+    } finally {
+      setSellingId(null);
     }
   };
 
@@ -342,8 +390,10 @@ export default function Admin() {
             <OffersTable
               offers={filteredOffers}
               onToggle={handleToggleStatus}
+              onMarkSold={handleMarkSold}
               onDelete={handleDeleteOffer}
               togglingId={togglingId}
+              sellingId={sellingId}
             />
           </section>
 
@@ -425,7 +475,7 @@ function StatsGrid({ stats }) {
   );
 }
 
-function OffersTable({ offers, onToggle, onDelete, togglingId }) {
+function OffersTable({ offers, onToggle, onMarkSold, onDelete, togglingId, sellingId }) {
   if (offers.length === 0) {
     return (
       <div className="card" style={styles.empty}>
@@ -451,8 +501,10 @@ function OffersTable({ offers, onToggle, onDelete, togglingId }) {
         <tbody>
           {offers.map((o) => {
             const isSold = o.status === 'sold';
-            const isBusy = togglingId === o.id;
             const isPaused = o.status === 'paused';
+            const isToggling = togglingId === o.id;
+            const isSelling = sellingId === o.id;
+            const rowBusy = isToggling || isSelling;
             return (
               <tr key={o.id} style={styles.tr}>
                 <td style={styles.td} title={o.title}>
@@ -468,30 +520,45 @@ function OffersTable({ offers, onToggle, onDelete, togglingId }) {
                 <td style={styles.td}>{formatDate(o.created_at)}</td>
                 <td style={styles.td}>
                   <div style={styles.rowBtns}>
+                    {!isSold && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => onToggle(o)}
+                        disabled={rowBusy}
+                        title={isPaused ? 'Activar oferta' : 'Pausar oferta'}
+                      >
+                        {isToggling
+                          ? '⏳ Guardando…'
+                          : isPaused
+                            ? '▶️ Activar'
+                            : '⏸️ Pausar'}
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      onClick={() => onToggle(o)}
-                      disabled={isSold || isBusy}
+                      onClick={() => onMarkSold(o)}
+                      disabled={rowBusy}
                       title={
                         isSold
-                          ? 'Las ofertas vendidas no se pueden pausar/activar'
-                          : isPaused
-                            ? 'Activar oferta'
-                            : 'Pausar oferta'
+                          ? 'Volver a publicar como activa'
+                          : 'Marcar la oferta como vendida'
                       }
                     >
-                      {isBusy
+                      {isSelling
                         ? '⏳ Guardando…'
-                        : isPaused
-                          ? '▶️ Activar'
-                          : '⏸️ Pausar'}
+                        : isSold
+                          ? '♻️ Reactivar'
+                          : '💸 Marcar vendida'}
                     </button>
+
                     <button
                       type="button"
                       className="btn btn-danger"
                       onClick={() => onDelete(o)}
-                      disabled={isBusy}
+                      disabled={rowBusy}
                     >
                       🗑️ Eliminar
                     </button>
