@@ -34,10 +34,10 @@ export default function OfferCard({
     // Si falla, no bloqueamos al usuario: igual abrimos el enlace.
     try {
       const { data: userData } = await supabase.auth.getUser();
-      const userId = userData?.user?.id ?? null;
+      const contacterId = userData?.user?.id ?? null;
       await supabase.from('contact_events').insert({
         offer_id: offer.id,
-        user_id: userId,
+        contacter_id: contacterId,
         channel: 'whatsapp'
       });
     } catch (err) {
