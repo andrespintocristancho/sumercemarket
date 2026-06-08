@@ -1,9 +1,16 @@
 // Admin.jsx
 // Panel de administración básico.
-// Acceso restringido a usuarios con profile.role === 'admin'.
+// Acceso restringido a usuarios con role === 'admin' en la tabla `profiles`.
 // Datos directos desde Supabase: profiles, offers, contact_events.
+//
+// Ajustes para el bug de detección admin:
+// - Usamos `role` (expuesto por AuthContext) en lugar de leer
+//   directamente profile?.role, para que cualquier consumidor
+//   tenga la misma fuente de verdad.
+// - Esperamos `profileLoading` antes de mostrar el 403, de modo que
+//   un admin nunca vea "Sin permisos" durante la carga inicial.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -12,7 +19,12 @@ import { formatPhone } from '../data/colombia.js';
 const COMMISSION_RATES = [0.05, 0.06];
 
 export default function Admin() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const {
+    user,
+    role,
+    loading: authLoading,
+    profileLoading
+  } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,13 +37,12 @@ export default function Admin() {
   const [offerStatus, setOfferStatus] = useState('all');
   const [userQ, setUserQ] = useState('');
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = role === 'admin';
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // 1) Conteos por estado de ofertas
       const [
         usersCountRes,
         offersTotalRes,
@@ -60,7 +71,6 @@ export default function Admin() {
           .limit(500)
       ]);
 
-      // Errores
       const firstError =
         usersCountRes.error ||
         offersTotalRes.error ||
@@ -104,11 +114,14 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && isAdmin) loadAll();
-  }, [authLoading, isAdmin, loadAll]);
+    if (!authLoading && !profileLoading && isAdmin) {
+      loadAll();
+    }
+  }, [authLoading, profileLoading, isAdmin, loadAll]);
 
   // ---------- Guardas de acceso ----------
-  if (authLoading) {
+  // Mostrar estado de carga mientras se resuelve sesión o perfil.
+  if (authLoading || profileLoading) {
     return <div className="loading">Verificando acceso…</div>;
   }
 
@@ -169,7 +182,6 @@ export default function Admin() {
       setOffers((prev) =>
         prev.map((o) => (o.id === offer.id ? { ...o, status: nextStatus } : o))
       );
-      // Recalcular contadores
       setStats((prev) => {
         if (!prev) return prev;
         const next = { ...prev };
@@ -193,7 +205,6 @@ export default function Admin() {
     if (!ok) return;
 
     try {
-      // Borrar dependencias (mejor esfuerzo; si hay ON DELETE CASCADE, no afecta)
       await supabase.from('offer_images').delete().eq('offer_id', offer.id);
       const { error: delErr } = await supabase
         .from('offers')
@@ -203,7 +214,6 @@ export default function Admin() {
 
       setOffers((prev) => prev.filter((o) => o.id !== offer.id));
 
-      // Actualizar contadores
       setStats((prev) => {
         if (!prev) return prev;
         const next = { ...prev };
