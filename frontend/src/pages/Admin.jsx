@@ -7,6 +7,16 @@
 // Columnas reales: id, full_name, phone, department, city, role,
 // created_at (+ otros campos del schema). Por eso las consultas y
 // el render usan `full_name` en lugar de `name`.
+//
+// Fix botón Pausar/Activar:
+// - El toggle escribe SIEMPRE en la columna `offers.status`
+//   (valores válidos: 'active' | 'paused' | 'sold').
+// - NO se usa `is_active` en ninguna parte.
+// - Tras el UPDATE se llama a loadAll() para refrescar la lista
+//   desde Supabase (fuente de verdad) y así garantizar persistencia.
+// - Se usa .select() en el UPDATE para detectar fallos silenciosos
+//   por RLS (0 filas afectadas sin error explícito).
+// - Los errores de Supabase se muestran en el banner de error de la UI.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -39,6 +49,9 @@ export default function Admin() {
   const [offerQ, setOfferQ] = useState('');
   const [offerStatus, setOfferStatus] = useState('all');
   const [userQ, setUserQ] = useState('');
+
+  // Estado de acción por fila (para deshabilitar el botón mientras se guarda)
+  const [togglingId, setTogglingId] = useState(null);
 
   // Debug en desarrollo
   useEffect(() => {
@@ -185,31 +198,56 @@ export default function Admin() {
   });
 
   // ---------- Acciones sobre ofertas ----------
+  //
+  // Botón Pausar / Activar.
+  // Reglas:
+  //  - Solo alterna entre 'active' <-> 'paused'.
+  //  - Si la oferta está 'sold' no se permite el toggle.
+  //  - Escribe en la columna `status` de la tabla `offers`.
+  //  - Tras el UPDATE refresca la lista llamando a loadAll() para
+  //    que el estado visual venga de la BD real (persistencia).
+  //  - Si Supabase devuelve error, se muestra en el banner superior.
+  //  - Si el UPDATE no devuelve filas, se asume bloqueo por RLS y
+  //    se reporta como error claro.
   const handleToggleStatus = async (offer) => {
-    const nextStatus = offer.status === 'paused' ? 'active' : 'paused';
+    if (!offer || togglingId) return;
+
+    if (offer.status === 'sold') {
+      setError('No se puede pausar/activar una oferta marcada como vendida.');
+      return;
+    }
+
+    const nextStatus = offer.status === 'active' ? 'paused' : 'active';
+
+    setTogglingId(offer.id);
+    setError('');
+
     try {
-      const { error: upErr } = await supabase
+      const { data, error: upErr } = await supabase
         .from('offers')
         .update({ status: nextStatus })
-        .eq('id', offer.id);
+        .eq('id', offer.id)
+        .select('id, status');
+
       if (upErr) throw upErr;
 
-      setOffers((prev) =>
-        prev.map((o) => (o.id === offer.id ? { ...o, status: nextStatus } : o))
-      );
-      setStats((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        if (offer.status === 'active') next.offersActive--;
-        if (offer.status === 'paused') next.offersPaused--;
-        if (offer.status === 'sold') next.offersSold--;
-        if (nextStatus === 'active') next.offersActive++;
-        if (nextStatus === 'paused') next.offersPaused++;
-        if (nextStatus === 'sold') next.offersSold++;
-        return next;
-      });
+      // Si RLS bloquea el UPDATE, Supabase devuelve data = [] sin error.
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error(
+          'El cambio no se guardó. Es probable que las políticas RLS de la tabla offers no permitan a tu usuario actualizar la columna status.'
+        );
+      }
+
+      // Refresca la lista desde Supabase para garantizar que el estado
+      // visual coincide con la BD (fuente de verdad).
+      await loadAll();
     } catch (err) {
-      alert('No fue posible cambiar el estado: ' + (err?.message || ''));
+      setError(
+        'No fue posible cambiar el estado de la oferta: ' +
+          (err?.message || 'error desconocido')
+      );
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -247,7 +285,7 @@ export default function Admin() {
         return next;
       });
     } catch (err) {
-      alert('No fue posible eliminar la oferta: ' + (err?.message || ''));
+      setError('No fue posible eliminar la oferta: ' + (err?.message || ''));
     }
   };
 
@@ -305,6 +343,7 @@ export default function Admin() {
               offers={filteredOffers}
               onToggle={handleToggleStatus}
               onDelete={handleDeleteOffer}
+              togglingId={togglingId}
             />
           </section>
 
@@ -386,7 +425,7 @@ function StatsGrid({ stats }) {
   );
 }
 
-function OffersTable({ offers, onToggle, onDelete }) {
+function OffersTable({ offers, onToggle, onDelete, togglingId }) {
   if (offers.length === 0) {
     return (
       <div className="card" style={styles.empty}>
@@ -410,40 +449,57 @@ function OffersTable({ offers, onToggle, onDelete }) {
           </tr>
         </thead>
         <tbody>
-          {offers.map((o) => (
-            <tr key={o.id} style={styles.tr}>
-              <td style={styles.td} title={o.title}>
-                <span style={styles.titleCell}>{o.title}</span>
-              </td>
-              <td style={styles.td}>{o.category || '—'}</td>
-              <td style={styles.td}>{formatMoney(o.price)}</td>
-              <td style={styles.td}>{o.city || '—'}</td>
-              <td style={styles.td}>{o.department || '—'}</td>
-              <td style={styles.td}>
-                <StatusPill status={o.status} />
-              </td>
-              <td style={styles.td}>{formatDate(o.created_at)}</td>
-              <td style={styles.td}>
-                <div style={styles.rowBtns}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => onToggle(o)}
-                    title={o.status === 'paused' ? 'Reactivar' : 'Pausar'}
-                  >
-                    {o.status === 'paused' ? '▶️ Activar' : '⏸️ Pausar'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => onDelete(o)}
-                  >
-                    🗑️ Eliminar
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {offers.map((o) => {
+            const isSold = o.status === 'sold';
+            const isBusy = togglingId === o.id;
+            const isPaused = o.status === 'paused';
+            return (
+              <tr key={o.id} style={styles.tr}>
+                <td style={styles.td} title={o.title}>
+                  <span style={styles.titleCell}>{o.title}</span>
+                </td>
+                <td style={styles.td}>{o.category || '—'}</td>
+                <td style={styles.td}>{formatMoney(o.price)}</td>
+                <td style={styles.td}>{o.city || '—'}</td>
+                <td style={styles.td}>{o.department || '—'}</td>
+                <td style={styles.td}>
+                  <StatusPill status={o.status} />
+                </td>
+                <td style={styles.td}>{formatDate(o.created_at)}</td>
+                <td style={styles.td}>
+                  <div style={styles.rowBtns}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => onToggle(o)}
+                      disabled={isSold || isBusy}
+                      title={
+                        isSold
+                          ? 'Las ofertas vendidas no se pueden pausar/activar'
+                          : isPaused
+                            ? 'Activar oferta'
+                            : 'Pausar oferta'
+                      }
+                    >
+                      {isBusy
+                        ? '⏳ Guardando…'
+                        : isPaused
+                          ? '▶️ Activar'
+                          : '⏸️ Pausar'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => onDelete(o)}
+                      disabled={isBusy}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
