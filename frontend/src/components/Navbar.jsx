@@ -69,6 +69,8 @@ export default function Navbar() {
             <>
               <NavLink to="/publish" style={navStyle} onClick={close}>Publicar</NavLink>
               <NavLink to="/my-offers" style={navStyle} onClick={close}>Mis ofertas</NavLink>
+              {/* Enlace al perfil de negocio: visible para cualquier usuario logueado. */}
+              <NavLink to="/business-profile" style={navStyle} onClick={close}>Mi negocio</NavLink>
 
               {/* Enlace Admin: visible solo si el role en `profiles` es 'admin'. */}
               {isAdmin === true && (
