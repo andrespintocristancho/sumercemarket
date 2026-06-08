@@ -2,6 +2,18 @@
 // Lista las ofertas del usuario autenticado. Permite cambiar estado,
 // editar campos básicos en línea y eliminar oferta + imágenes asociadas
 // (registro en BD + archivos en Storage).
+//
+// Nuevo:
+// - Botón "Marcar vendida" en cada oferta propia si status es 'active'
+//   o 'paused' (escribe offers.status = 'sold').
+// - Botón "Reactivar" en cada oferta propia si status es 'sold'
+//   (escribe offers.status = 'active').
+// - Los UPDATE se restringen por id Y por user_id = auth.uid() como
+//   defensa en profundidad (además de RLS), para que un usuario solo
+//   pueda cambiar el estado de sus propias ofertas.
+// - Tras el UPDATE se recarga la lista desde Supabase (fuente de verdad)
+//   para que el estado visual coincida con la BD.
+// - Los errores se muestran en el banner de error de la página (no alert).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -25,6 +37,7 @@ export default function MyOffers() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [editing, setEditing] = useState(null); // oferta en edición
+  const [sellingId, setSellingId] = useState(null); // id de oferta cuyo status se está cambiando
 
   const fetchOffers = useCallback(async () => {
     if (!user?.id) return;
@@ -65,19 +78,76 @@ export default function MyOffers() {
     return c;
   }, [offers]);
 
+  // Helper interno: actualiza offers.status para una oferta del usuario
+  // autenticado. Restringe por id Y user_id (defensa en profundidad).
+  // Usa .select() para detectar el caso silencioso de RLS (data = []).
+  // Tras un OK, recarga la lista desde Supabase.
+  const updateOwnOfferStatus = async (offerId, nextStatus) => {
+    if (!user?.id) {
+      throw new Error('Debes iniciar sesión para realizar esta acción.');
+    }
+    const { data, error: upErr } = await supabase
+      .from('offers')
+      .update({ status: nextStatus })
+      .eq('id', offerId)
+      .eq('user_id', user.id)
+      .select('id, status');
+
+    if (upErr) throw upErr;
+
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error(
+        'El cambio no se guardó. Verifica que la oferta es tuya y que las políticas RLS permiten actualizar offers.status.'
+      );
+    }
+
+    await fetchOffers();
+  };
+
   const handleChangeStatus = async (offer, nextStatus) => {
     if (offer.status === nextStatus) return;
+    if (sellingId) return;
+
+    setSellingId(offer.id);
+    setError('');
     try {
-      const { error: upErr } = await supabase
-        .from('offers')
-        .update({ status: nextStatus })
-        .eq('id', offer.id);
-      if (upErr) throw upErr;
-      setOffers((prev) =>
-        prev.map((o) => (o.id === offer.id ? { ...o, status: nextStatus } : o))
-      );
+      await updateOwnOfferStatus(offer.id, nextStatus);
     } catch (err) {
-      alert('No fue posible cambiar el estado: ' + (err?.message || ''));
+      setError('No fue posible cambiar el estado: ' + (err?.message || 'error desconocido'));
+    } finally {
+      setSellingId(null);
+    }
+  };
+
+  // Botón "Marcar vendida" / "Reactivar" en cada oferta propia.
+  // - 'active' o 'paused' -> 'sold' (con confirmación)
+  // - 'sold'              -> 'active'
+  const handleMarkSold = async (offer) => {
+    if (!offer || sellingId) return;
+
+    const isSold = offer.status === 'sold';
+    const nextStatus = isSold ? 'active' : 'sold';
+
+    if (!isSold) {
+      const ok = window.confirm(
+        `¿Marcar la oferta "${offer.title}" como VENDIDA? Dejará de aparecer en el catálogo público.`
+      );
+      if (!ok) return;
+    }
+
+    setSellingId(offer.id);
+    setError('');
+    try {
+      await updateOwnOfferStatus(offer.id, nextStatus);
+    } catch (err) {
+      setError(
+        (isSold
+          ? 'No fue posible reactivar la oferta: '
+          : 'No fue posible marcar la oferta como vendida: ') +
+          (err?.message || 'error desconocido')
+      );
+    } finally {
+      setSellingId(null);
     }
   };
 
@@ -106,16 +176,17 @@ export default function MyOffers() {
       // 2) Borrar filas en offer_images (por si no hay ON DELETE CASCADE)
       await supabase.from('offer_images').delete().eq('offer_id', offer.id);
 
-      // 3) Borrar la oferta
+      // 3) Borrar la oferta (restringido por user_id como defensa en profundidad)
       const { error: delErr } = await supabase
         .from('offers')
         .delete()
-        .eq('id', offer.id);
+        .eq('id', offer.id)
+        .eq('user_id', user?.id);
       if (delErr) throw delErr;
 
       setOffers((prev) => prev.filter((o) => o.id !== offer.id));
     } catch (err) {
-      alert('No fue posible eliminar la oferta: ' + (err?.message || ''));
+      setError('No fue posible eliminar la oferta: ' + (err?.message || ''));
     }
   };
 
@@ -152,16 +223,41 @@ export default function MyOffers() {
         <EmptyState filter={filter} />
       ) : (
         <div style={styles.grid}>
-          {filtered.map((o) => (
-            <OfferCard
-              key={o.id}
-              offer={o}
-              showOwnerActions
-              onEdit={(off) => setEditing(off)}
-              onDelete={handleDelete}
-              onChangeStatus={handleChangeStatus}
-            />
-          ))}
+          {filtered.map((o) => {
+            const isSold = o.status === 'sold';
+            const isBusy = sellingId === o.id;
+            return (
+              <div key={o.id} style={styles.cardWrap}>
+                <OfferCard
+                  offer={o}
+                  showOwnerActions
+                  onEdit={(off) => setEditing(off)}
+                  onDelete={handleDelete}
+                  onChangeStatus={handleChangeStatus}
+                />
+                <div style={styles.cardActions}>
+                  <button
+                    type="button"
+                    className={isSold ? 'btn btn-ghost' : 'btn'}
+                    onClick={() => handleMarkSold(o)}
+                    disabled={isBusy}
+                    title={
+                      isSold
+                        ? 'Volver a publicar la oferta como activa'
+                        : 'Marcar la oferta como vendida'
+                    }
+                    style={{ width: '100%' }}
+                  >
+                    {isBusy
+                      ? '⏳ Guardando…'
+                      : isSold
+                        ? '♻️ Reactivar'
+                        : '💸 Marcar vendida'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -448,6 +544,15 @@ const styles = {
     display: 'grid',
     gap: 16,
     gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))'
+  },
+  cardWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8
+  },
+  cardActions: {
+    display: 'flex',
+    gap: 8
   },
   backdrop: {
     position: 'fixed',
