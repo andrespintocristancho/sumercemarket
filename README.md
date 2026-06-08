@@ -4,17 +4,16 @@
 
 ## Estado actual (Bloque 8c — Reset arquitectónico)
 
-Tras el reset del Bloque 8c, el repositorio contiene **únicamente el frontend React + Vite**. Se eliminó todo el backend Express legado y los stubs sueltos que ya no se usan, dejando una base limpia para reconstruir la capa de servicios desde cero en bloques siguientes.
+Tras el reset del Bloque 8c, el repositorio contiene **únicamente el frontend React + Vite**. Se eliminó todo el backend Express legado (`backend/src/controllers`, `backend/src/services`, `backend/src/routes`, `backend/src/middleware`) y los stubs sueltos de frontend que ya no se usaban (`frontend/src/services/api.js`, `frontend/src/pages/CreateOffer.jsx`, `frontend/src/pages/AdminDashboard.jsx`), dejando una base limpia para reconstruir la capa de servicios desde cero en bloques siguientes.
 
 - **Frontend:** React 18 + Vite, ubicado en `frontend/`.
 - **Backend:** ❌ No existe en el repo actualmente. Cualquier consumo real de API se reintroducirá en bloques futuros.
-- **Tema visual:** Tema colombiano (amarillo / azul / rojo) heredado del Bloque 7, intacto.
-- **Páginas Bloque 8a vigentes:** `Login`, `Register`, `Dashboard`, `OffersList`, `OfferDetail`, ya integradas en el router.
-- **Páginas Bloque 8b retiradas:** `CreateOffer` y `AdminDashboard` se eliminaron junto con `services/api.js` (eran stubs sin backend). Sus rutas también se retiraron del router.
+- **Tema visual:** Tema colombiano (amarillo / azul / rojo) heredado de bloques previos, intacto.
+- **Router:** definido en `frontend/src/App.jsx` con `react-router-dom`, envuelto en `AuthProvider` y usando `ProtectedRoute` para rutas privadas y de administración.
 
-> ⚠️ Esta es una app **solo de UI**. No hay autenticación real ni persistencia. Los formularios y vistas son la base para conectar servicios cuando se reconstruya la capa de datos.
+> ⚠️ Esta es una app **solo de UI**. No hay backend ni persistencia real en este repo. Los formularios y vistas son la base para conectar servicios cuando se reconstruya la capa de datos.
 
-## Estructura del repositorio
+## Estructura real del repositorio
 
 ```
 sumercemarket/
@@ -27,21 +26,27 @@ sumercemarket/
 │       ├── main.jsx
 │       ├── App.jsx
 │       ├── App.css
-│       ├── styles/
-│       │   └── theme.css
 │       ├── components/
 │       │   ├── Navbar.jsx
-│       │   └── Footer.jsx
+│       │   └── ProtectedRoute.jsx
+│       ├── context/
+│       │   └── AuthContext.jsx
 │       └── pages/
 │           ├── Home.jsx
+│           ├── Home.css
 │           ├── Login.jsx
 │           ├── Register.jsx
-│           ├── Dashboard.jsx
-│           ├── OffersList.jsx
-│           └── OfferDetail.jsx
+│           ├── Publish.jsx
+│           ├── MyOffers.jsx
+│           ├── Admin.jsx
+│           ├── OfferDetail.jsx
+│           ├── OfferDetail.css
+│           └── NotFound.jsx
 ├── .gitignore
 └── README.md
 ```
+
+> Nota: si tu copia local muestra carpetas o archivos distintos a los listados arriba (por ejemplo, un `backend/` viejo), sincroniza con `git pull` para reflejar el reset del Bloque 8c.
 
 ## Cómo ejecutar el frontend
 
@@ -62,26 +67,28 @@ npm run build
 npm run preview
 ```
 
-## Rutas disponibles (Bloque 8c)
+## Rutas definidas en `App.jsx`
 
-| Ruta | Componente | Descripción |
-|------|------------|-------------|
-| `/` | `Home` | Landing pública del proyecto. |
-| `/login` | `Login` | Formulario de inicio de sesión (UI solamente). |
-| `/register` | `Register` | Formulario de registro (UI solamente). |
-| `/dashboard` | `Dashboard` | Panel posterior al login (UI solamente). |
-| `/offers` | `OffersList` | Listado de ofertas (datos de muestra). |
-| `/offers/:id` | `OfferDetail` | Detalle de una oferta (datos de muestra). |
+| Ruta | Componente | Protección | Descripción |
+|------|------------|------------|-------------|
+| `/` | `Home` | Pública | Landing del proyecto. |
+| `/login` | `Login` | Pública | Formulario de inicio de sesión (UI). |
+| `/register` | `Register` | Pública | Formulario de registro (UI). |
+| `/offers/:id` | `OfferDetail` | Pública | Detalle de una oferta. |
+| `/publish` | `Publish` | `ProtectedRoute` | Publicar una nueva oferta. |
+| `/my-offers` | `MyOffers` | `ProtectedRoute` | Ofertas del usuario autenticado. |
+| `/admin` | `Admin` | `ProtectedRoute adminOnly` | Panel de administración. |
+| `*` | `NotFound` (interno) | — | Página 404 mostrada por el router. |
 
-Las rutas `/offers/new` y `/admin` del Bloque 8b fueron retiradas porque dependían de stubs eliminados.
+Las rutas `/offers/new` y los componentes `CreateOffer` / `AdminDashboard` del intento anterior fueron retirados porque dependían de stubs y de un backend que ya no está en el repo.
 
 ## Roadmap inmediato
 
 - **Bloque 8d (planeado):** Reintroducir un cliente HTTP limpio y servicios desacoplados, ahora sí pensados para un backend real.
-- **Bloque 9 (planeado):** Reconstruir un backend mínimo (Node + Express o equivalente) en un repositorio o carpeta separada, con contratos claros.
+- **Bloque 9 (planeado):** Reconstruir un backend mínimo (Node + Express o equivalente), con contratos claros, en una carpeta o repositorio separado.
 
 ## Notas importantes
 
 - No hay workflows de GitHub Actions y no se planean en este bloque.
-- El despliegue en GitHub Pages **solo aplicaría al frontend** y no está activado automáticamente. Si se activa manualmente desde Settings → Pages, debe apuntarse a la carpeta `frontend/dist` generada por el build, o servirse desde otra plataforma estática (Netlify, Vercel, etc.).
+- El despliegue en GitHub Pages **solo aplicaría al frontend** y no está activado automáticamente. Si se activa manualmente desde Settings → Pages, debe apuntarse a la carpeta `frontend/dist` generada por `npm run build`, o servirse desde otra plataforma estática (Netlify, Vercel, etc.).
 - No se incluyen claves, tokens ni secretos en el repositorio.
