@@ -1,59 +1,58 @@
-// Servicio centralizado para llamadas al backend
-const API_BASE = '/api';
+// ============================================================
+// services/api.js — STUB LEGADO
+// ============================================================
+// Este módulo apuntaba al antiguo backend Node + Express en /api.
+// En la arquitectura actual (Supabase) ya NO se usa.
+//
+// Se conserva como stub para no romper imports residuales mientras
+// se migran las últimas pantallas legado. Toda llamada lanza un
+// error claro indicando que el caller debe migrarse a Supabase.
+//
+// ❌ No reintroducir fetch('/api/...').
+// ❌ No reintroducir tokens en localStorage.
+// ✅ Para nuevas pantallas, usar:
+//      import { supabase } from '../lib/supabaseClient.js';
+// ============================================================
 
-function getToken() {
-  return localStorage.getItem('sumerce_token');
+function legacyError(method) {
+  const msg =
+    `[api.${method}] El backend Node legado ya no existe. ` +
+    'Esta pantalla debe migrarse a Supabase (ver frontend/src/lib/supabaseClient.js).';
+  // eslint-disable-next-line no-console
+  console.warn(msg);
+  const err = new Error('Funcionalidad no disponible: migrar a Supabase.');
+  err.code = 'LEGACY_API_REMOVED';
+  return err;
 }
 
-async function request(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  // No agregar Content-Type si es FormData (multer lo necesita en multipart)
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  let data;
-  try { data = await res.json(); } catch { data = null; }
-
-  if (!res.ok) {
-    const error = new Error((data && data.error) || `Error ${res.status}`);
-    error.status = res.status;
-    throw error;
-  }
-  return data;
+function notImplemented(method) {
+  return () => Promise.reject(legacyError(method));
 }
 
 export const api = {
-  // Auth
-  register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
-  login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-  me: () => request('/auth/me'),
+  // Auth (gestionado ahora por Supabase Auth en AuthContext)
+  register: notImplemented('register'),
+  login: notImplemented('login'),
+  me: notImplemented('me'),
 
   // Offers
-  listOffers: (filters = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(filters).filter(([_, v]) => v !== '' && v != null)
-    ).toString();
-    return request(`/offers${qs ? `?${qs}` : ''}`);
-  },
-  getOffer: (id) => request(`/offers/${id}`),
-  myOffers: () => request('/offers/mine'),
-  createOffer: (formData) => request('/offers', { method: 'POST', body: formData }),
-  updateOffer: (id, body) => request(`/offers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  deleteOffer: (id) => request(`/offers/${id}`, { method: 'DELETE' }),
-  contactOffer: (id) => request(`/offers/${id}/contact`, { method: 'POST' }),
+  listOffers: notImplemented('listOffers'),
+  getOffer: notImplemented('getOffer'),
+  myOffers: notImplemented('myOffers'),
+  createOffer: notImplemented('createOffer'),
+  updateOffer: notImplemented('updateOffer'),
+  deleteOffer: notImplemented('deleteOffer'),
+  contactOffer: notImplemented('contactOffer'),
 
-  // Locations
-  getDepartments: () => request('/locations/departments'),
-  getCities: (dep) => request(`/locations/cities/${encodeURIComponent(dep)}`),
+  // Locations (catálogo estático en frontend/src/data/colombia.js)
+  getDepartments: notImplemented('getDepartments'),
+  getCities: notImplemented('getCities'),
 
   // Admin
-  adminStats: () => request('/admin/stats'),
-  adminUsers: () => request('/admin/users'),
-  adminDeleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
-  adminOffers: () => request('/admin/offers'),
+  adminStats: notImplemented('adminStats'),
+  adminUsers: notImplemented('adminUsers'),
+  adminDeleteUser: notImplemented('adminDeleteUser'),
+  adminOffers: notImplemented('adminOffers')
 };
+
+export default api;
