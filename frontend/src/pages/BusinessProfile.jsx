@@ -5,6 +5,21 @@ import '../styles/BusinessProfile.css'
 
 const BUCKET = 'business-assets'
 
+// Genera un slug URL-safe a partir de un texto libre.
+function slugify(input) {
+  return (input || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+}
+
 // Optimiza una imagen en el navegador usando canvas.
 // Devuelve { blob, ext, mime } intentando WebP y haciendo fallback a JPG.
 async function optimizeImage(file, maxW, maxH, quality = 0.75) {
@@ -60,15 +75,20 @@ export default function BusinessProfile() {
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
 
+  // Columnas reales de profiles para el negocio:
+  // business_name, business_slug, business_description,
+  // business_logo_url, business_cover_url, business_whatsapp,
+  // business_address, business_department, business_city
   const [profile, setProfile] = useState({
     business_name: '',
+    business_slug: '',
     business_description: '',
-    business_category: '',
-    business_phone: '',
-    business_address: '',
-    business_city: '',
-    business_cover_url: '',
     business_logo_url: '',
+    business_cover_url: '',
+    business_whatsapp: '',
+    business_address: '',
+    business_department: '',
+    business_city: '',
   })
 
   const coverInputRef = useRef(null)
@@ -88,7 +108,7 @@ export default function BusinessProfile() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('business_name, business_description, business_category, business_phone, business_address, business_city, business_cover_url, business_logo_url')
+          .select('business_name, business_slug, business_description, business_logo_url, business_cover_url, business_whatsapp, business_address, business_department, business_city')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -98,13 +118,14 @@ export default function BusinessProfile() {
           setProfile((p) => ({
             ...p,
             business_name: data.business_name || '',
+            business_slug: data.business_slug || '',
             business_description: data.business_description || '',
-            business_category: data.business_category || '',
-            business_phone: data.business_phone || '',
-            business_address: data.business_address || '',
-            business_city: data.business_city || '',
-            business_cover_url: data.business_cover_url || '',
             business_logo_url: data.business_logo_url || '',
+            business_cover_url: data.business_cover_url || '',
+            business_whatsapp: data.business_whatsapp || '',
+            business_address: data.business_address || '',
+            business_department: data.business_department || '',
+            business_city: data.business_city || '',
           }))
         }
       } catch (e) {
@@ -121,6 +142,10 @@ export default function BusinessProfile() {
   function handleChange(e) {
     const { name, value } = e.target
     setProfile((p) => ({ ...p, [name]: value }))
+  }
+
+  function handleSlugChange(e) {
+    setProfile((p) => ({ ...p, business_slug: slugify(e.target.value) }))
   }
 
   async function uploadAsset(file, kind) {
@@ -143,7 +168,6 @@ export default function BusinessProfile() {
       const { blob, ext, mime } = await optimizeImage(file, maxW, maxH, 0.75)
       if (!blob) throw new Error('No se pudo procesar la imagen.')
 
-      // Mantener nombre estable, pero permitir webp/jpg.
       const fileName = isCover ? `cover.${ext}` : `logo.${ext}`
       const path = `${userId}/${fileName}`
 
@@ -163,7 +187,7 @@ export default function BusinessProfile() {
         .from(BUCKET)
         .getPublicUrl(path)
 
-      // Cache buster para que el navegador refresque la imagen.
+      // Cache buster para refrescar la imagen en el navegador.
       const publicUrl = `${pub.publicUrl}?v=${Date.now()}`
 
       const column = isCover ? 'business_cover_url' : 'business_logo_url'
@@ -205,22 +229,35 @@ export default function BusinessProfile() {
     setError('')
     setOkMsg('')
     try {
+      // Normalizamos el slug por si el usuario lo dejó con espacios.
+      const cleanSlug = slugify(profile.business_slug)
+
+      const payload = {
+        business_name: profile.business_name || null,
+        business_slug: cleanSlug || null,
+        business_description: profile.business_description || null,
+        business_whatsapp: profile.business_whatsapp || null,
+        business_address: profile.business_address || null,
+        business_department: profile.business_department || null,
+        business_city: profile.business_city || null,
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          business_name: profile.business_name,
-          business_description: profile.business_description,
-          business_category: profile.business_category,
-          business_phone: profile.business_phone,
-          business_address: profile.business_address,
-          business_city: profile.business_city,
-        })
+        .update(payload)
         .eq('id', userId)
       if (error) throw error
+
+      setProfile((p) => ({ ...p, business_slug: cleanSlug }))
       setOkMsg('Datos del negocio guardados.')
     } catch (e) {
       console.error(e)
-      setError('No se pudieron guardar los cambios.')
+      // Slug duplicado típico: violación de índice único.
+      if (e && (e.code === '23505' || /duplicate|unique/i.test(e.message || ''))) {
+        setError('Ese identificador de tienda (slug) ya está en uso. Prueba con otro.')
+      } else {
+        setError('No se pudieron guardar los cambios.')
+      }
     } finally {
       setSaving(false)
     }
@@ -304,8 +341,10 @@ export default function BusinessProfile() {
 
         <div className="bp-title">
           <h1>{profile.business_name || 'Mi Negocio'}</h1>
-          {profile.business_category && (
-            <p className="bp-subtitle">{profile.business_category}</p>
+          {profile.business_slug && (
+            <p className="bp-subtitle">
+              URL pública: <code>/seller/{profile.business_slug}</code>
+            </p>
           )}
         </div>
 
@@ -343,38 +382,54 @@ export default function BusinessProfile() {
           </div>
 
           <div className="bp-field">
-            <label htmlFor="business_category">Categoría</label>
+            <label htmlFor="business_slug">
+              Identificador de tienda (slug)
+            </label>
             <input
-              id="business_category"
-              name="business_category"
+              id="business_slug"
+              name="business_slug"
               type="text"
-              value={profile.business_category}
-              onChange={handleChange}
-              placeholder="Ej: Alimentos, Moda, Tecnología"
+              value={profile.business_slug}
+              onChange={handleSlugChange}
+              placeholder="ej: panaderia-la-espiga"
             />
+            <small>Se usa en la URL pública: /seller/&lt;slug&gt;</small>
           </div>
 
           <div className="bp-field">
-            <label htmlFor="business_phone">Teléfono</label>
+            <label htmlFor="business_whatsapp">WhatsApp</label>
             <input
-              id="business_phone"
-              name="business_phone"
+              id="business_whatsapp"
+              name="business_whatsapp"
               type="tel"
-              value={profile.business_phone}
+              value={profile.business_whatsapp}
               onChange={handleChange}
-              placeholder="Ej: 3001234567"
+              placeholder="Ej: 573001234567"
+            />
+            <small>Incluye indicativo del país sin signos (ej: 57…).</small>
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="business_department">Departamento</label>
+            <input
+              id="business_department"
+              name="business_department"
+              type="text"
+              value={profile.business_department}
+              onChange={handleChange}
+              placeholder="Ej: Boyacá"
             />
           </div>
 
           <div className="bp-field">
-            <label htmlFor="business_city">Ciudad</label>
+            <label htmlFor="business_city">Ciudad / Municipio</label>
             <input
               id="business_city"
               name="business_city"
               type="text"
               value={profile.business_city}
               onChange={handleChange}
-              placeholder="Ej: Bogotá"
+              placeholder="Ej: Tunja"
             />
           </div>
 
