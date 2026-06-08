@@ -1,499 +1,414 @@
-// BusinessProfile.jsx
-// Página protegida en /business-profile.
-// Permite a un vendedor editar y guardar sus datos de negocio
-// en la tabla public.profiles (columnas business_*).
-//
-// Campos editables:
-//   - business_name
-//   - business_slug          (único, validado)
-//   - business_description
-//   - business_whatsapp
-//   - business_address
-//   - business_department    (Colombia)
-//   - business_city          (depende del departamento)
-//   - business_logo_url      (URL pública)
-//   - business_cover_url     (URL pública)
-//
-// No toca campos de auth ni email. No usa Google/OAuth.
+import { useEffect, useRef, useState } from 'react'
+import { supabase } from '../services/supabaseClient'
+import { useNavigate } from 'react-router-dom'
+import '../styles/BusinessProfile.css'
 
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient.js';
-import { useAuth } from '../context/AuthContext.jsx';
-import {
-  DEPARTMENTS,
-  citiesOf,
-  isValidColombianPhone
-} from '../data/colombia.js';
+const BUCKET = 'business-assets'
 
-// Convierte un texto cualquiera en un slug seguro para URL.
-function slugify(input) {
-  return String(input || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // sin tildes
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 60);
+// Optimiza una imagen en el navegador usando canvas.
+// Devuelve { blob, ext, mime } intentando WebP y haciendo fallback a JPG.
+async function optimizeImage(file, maxW, maxH, quality = 0.75) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  const img = await new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = reject
+    image.src = dataUrl
+  })
+
+  // Escalar manteniendo aspecto, sin agrandar.
+  const ratio = Math.min(maxW / img.width, maxH / img.height, 1)
+  const targetW = Math.round(img.width * ratio)
+  const targetH = Math.round(img.height * ratio)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = targetW
+  canvas.height = targetH
+  const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(img, 0, 0, targetW, targetH)
+
+  // Intentar WebP
+  const webpBlob = await new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), 'image/webp', quality)
+  )
+  if (webpBlob && webpBlob.size > 0) {
+    return { blob: webpBlob, ext: 'webp', mime: 'image/webp' }
+  }
+
+  // Fallback JPG
+  const jpgBlob = await new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), 'image/jpeg', quality)
+  )
+  return { blob: jpgBlob, ext: 'jpg', mime: 'image/jpeg' }
 }
-
-const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/;
 
 export default function BusinessProfile() {
-  const { user, profile, refreshProfile, profileLoading } = useAuth();
+  const navigate = useNavigate()
+  const [userId, setUserId] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [error, setError] = useState('')
+  const [okMsg, setOkMsg] = useState('')
 
-  const [form, setForm] = useState({
+  const [profile, setProfile] = useState({
     business_name: '',
-    business_slug: '',
     business_description: '',
-    business_whatsapp: '',
+    business_category: '',
+    business_phone: '',
     business_address: '',
-    business_department: '',
     business_city: '',
+    business_cover_url: '',
     business_logo_url: '',
-    business_cover_url: ''
-  });
+  })
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [slugTouched, setSlugTouched] = useState(false);
+  const coverInputRef = useRef(null)
+  const logoInputRef = useRef(null)
 
-  // Cuando el perfil esté disponible, precargamos el formulario.
   useEffect(() => {
-    if (!profile) return;
-    setForm({
-      business_name: profile.business_name || '',
-      business_slug: profile.business_slug || '',
-      business_description: profile.business_description || '',
-      business_whatsapp: profile.business_whatsapp || '',
-      business_address: profile.business_address || '',
-      business_department: profile.business_department || '',
-      business_city: profile.business_city || '',
-      business_logo_url: profile.business_logo_url || '',
-      business_cover_url: profile.business_cover_url || ''
-    });
-    setSlugTouched(Boolean(profile.business_slug));
-  }, [profile]);
+    let mounted = true
+    async function load() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          navigate('/login')
+          return
+        }
+        if (!mounted) return
+        setUserId(user.id)
 
-  const cities = useMemo(
-    () => citiesOf(form.business_department),
-    [form.business_department]
-  );
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('business_name, business_description, business_category, business_phone, business_address, business_city, business_cover_url, business_logo_url')
+          .eq('id', user.id)
+          .maybeSingle()
 
-  const update = (field) => (e) => {
-    const value = e.target.value;
-    setForm((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === 'business_department') next.business_city = '';
-      // Si el usuario no ha tocado manualmente el slug, lo
-      // sincronizamos con el nombre del negocio.
-      if (field === 'business_name' && !slugTouched) {
-        next.business_slug = slugify(value);
+        if (error) throw error
+
+        if (data && mounted) {
+          setProfile((p) => ({
+            ...p,
+            business_name: data.business_name || '',
+            business_description: data.business_description || '',
+            business_category: data.business_category || '',
+            business_phone: data.business_phone || '',
+            business_address: data.business_address || '',
+            business_city: data.business_city || '',
+            business_cover_url: data.business_cover_url || '',
+            business_logo_url: data.business_logo_url || '',
+          }))
+        }
+      } catch (e) {
+        console.error(e)
+        setError('No se pudo cargar el perfil del negocio.')
+      } finally {
+        if (mounted) setLoading(false)
       }
-      if (field === 'business_slug') {
-        setSlugTouched(true);
-        next.business_slug = slugify(value);
-      }
-      return next;
-    });
-  };
+    }
+    load()
+    return () => { mounted = false }
+  }, [navigate])
 
-  const validate = () => {
-    if (form.business_name.trim().length < 3) {
-      return 'El nombre del negocio debe tener al menos 3 caracteres.';
-    }
-    if (!SLUG_REGEX.test(form.business_slug)) {
-      return 'El slug debe tener entre 2 y 60 caracteres y solo letras, números y guiones.';
-    }
-    if (
-      form.business_whatsapp &&
-      !isValidColombianPhone(form.business_whatsapp)
-    ) {
-      return 'WhatsApp inválido (10 dígitos, empieza con 3).';
-    }
-    if (form.business_department && !form.business_city) {
-      return 'Selecciona la ciudad del negocio.';
-    }
-    return '';
-  };
+  function handleChange(e) {
+    const { name, value } = e.target
+    setProfile((p) => ({ ...p, [name]: value }))
+  }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  async function uploadAsset(file, kind) {
+    if (!userId) return
+    setError('')
+    setOkMsg('')
 
-    if (!user?.id) {
-      setError('Debes iniciar sesión para guardar tu negocio.');
-      return;
-    }
+    const isCover = kind === 'cover'
+    const maxW = isCover ? 1600 : 600
+    const maxH = isCover ? 600 : 600
 
-    const v = validate();
-    if (v) {
-      setError(v);
-      return;
-    }
+    if (isCover) setUploadingCover(true)
+    else setUploadingLogo(true)
 
-    setSaving(true);
     try {
-      // 1) Verificar que el slug no esté tomado por otro perfil.
-      const { data: clash, error: clashErr } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('business_slug', form.business_slug)
-        .neq('id', user.id)
-        .maybeSingle();
-
-      if (clashErr) throw clashErr;
-      if (clash) {
-        setError('Ese slug ya está en uso por otro vendedor. Prueba con otro.');
-        setSaving(false);
-        return;
+      if (!file.type.startsWith('image/')) {
+        throw new Error('El archivo debe ser una imagen.')
       }
 
-      // 2) Actualizar el perfil del vendedor.
-      const payload = {
-        business_name: form.business_name.trim(),
-        business_slug: form.business_slug,
-        business_description: form.business_description.trim() || null,
-        business_whatsapp: form.business_whatsapp.trim() || null,
-        business_address: form.business_address.trim() || null,
-        business_department: form.business_department || null,
-        business_city: form.business_city || null,
-        business_logo_url: form.business_logo_url.trim() || null,
-        business_cover_url: form.business_cover_url.trim() || null
-      };
+      const { blob, ext, mime } = await optimizeImage(file, maxW, maxH, 0.75)
+      if (!blob) throw new Error('No se pudo procesar la imagen.')
 
-      const { data, error: upErr } = await supabase
+      // Mantener nombre estable, pero permitir webp/jpg.
+      const fileName = isCover ? `cover.${ext}` : `logo.${ext}`
+      const path = `${userId}/${fileName}`
+
+      const { error: upErr } = await supabase
+        .storage
+        .from(BUCKET)
+        .upload(path, blob, {
+          contentType: mime,
+          upsert: true,
+          cacheControl: '3600',
+        })
+
+      if (upErr) throw upErr
+
+      const { data: pub } = supabase
+        .storage
+        .from(BUCKET)
+        .getPublicUrl(path)
+
+      // Cache buster para que el navegador refresque la imagen.
+      const publicUrl = `${pub.publicUrl}?v=${Date.now()}`
+
+      const column = isCover ? 'business_cover_url' : 'business_logo_url'
+
+      const { error: dbErr } = await supabase
         .from('profiles')
-        .update(payload)
-        .eq('id', user.id)
-        .select('id, business_slug');
+        .update({ [column]: publicUrl })
+        .eq('id', userId)
 
-      if (upErr) throw upErr;
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error(
-          'No se guardó. Verifica que las políticas RLS permiten actualizar tu perfil.'
-        );
-      }
+      if (dbErr) throw dbErr
 
-      await refreshProfile();
-      setSuccess('Tu negocio se guardó correctamente.');
-    } catch (err) {
-      setError(err?.message || 'No fue posible guardar los cambios.');
+      setProfile((p) => ({ ...p, [column]: publicUrl }))
+      setOkMsg(isCover ? 'Portada actualizada.' : 'Logo actualizado.')
+    } catch (e) {
+      console.error(e)
+      setError(e.message || 'Error al subir la imagen.')
     } finally {
-      setSaving(false);
+      if (isCover) setUploadingCover(false)
+      else setUploadingLogo(false)
     }
-  };
+  }
 
-  const publicUrl = form.business_slug ? `/seller/${form.business_slug}` : '';
+  function onCoverChange(e) {
+    const file = e.target.files?.[0]
+    if (file) uploadAsset(file, 'cover')
+    e.target.value = ''
+  }
+
+  function onLogoChange(e) {
+    const file = e.target.files?.[0]
+    if (file) uploadAsset(file, 'logo')
+    e.target.value = ''
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!userId) return
+    setSaving(true)
+    setError('')
+    setOkMsg('')
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          business_name: profile.business_name,
+          business_description: profile.business_description,
+          business_category: profile.business_category,
+          business_phone: profile.business_phone,
+          business_address: profile.business_address,
+          business_city: profile.business_city,
+        })
+        .eq('id', userId)
+      if (error) throw error
+      setOkMsg('Datos del negocio guardados.')
+    } catch (e) {
+      console.error(e)
+      setError('No se pudieron guardar los cambios.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bp-loading">
+        <p>Cargando perfil del negocio...</p>
+      </div>
+    )
+  }
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.header}>
-        <h1 style={styles.h1}>Mi negocio</h1>
-        {publicUrl && profile?.business_slug ? (
-          <Link to={publicUrl} className="btn btn-ghost">
-            Ver mi tienda pública ↗
-          </Link>
-        ) : null}
+    <div className="bp-wrapper">
+      {/* Portada estilo Facebook */}
+      <div className="bp-cover">
+        {profile.business_cover_url ? (
+          <img
+            src={profile.business_cover_url}
+            alt="Portada del negocio"
+            className="bp-cover-img"
+          />
+        ) : (
+          <div className="bp-cover-empty">
+            <span>Sin portada</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="bp-cover-btn"
+          onClick={() => coverInputRef.current?.click()}
+          disabled={uploadingCover}
+        >
+          {uploadingCover ? 'Subiendo...' : '📷 Cambiar portada'}
+        </button>
+
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          onChange={onCoverChange}
+          hidden
+        />
       </div>
 
-      <p style={styles.intro}>
-        Configura los datos públicos de tu tienda. Cualquiera podrá visitarla en{' '}
-        <code style={styles.code}>/seller/&lt;slug&gt;</code> y ver tus ofertas activas.
-      </p>
-
-      {profileLoading && !profile ? (
-        <div className="loading">Cargando tu perfil…</div>
-      ) : (
-        <form className="card" onSubmit={handleSubmit} style={styles.form} noValidate>
-          <PreviewBanner form={form} />
-
-          <label style={styles.label}>
-            Nombre del negocio *
-            <input
-              className="input"
-              value={form.business_name}
-              onChange={update('business_name')}
-              maxLength={80}
-              placeholder="Ej: Artesanías Sumercé"
-              required
-            />
-          </label>
-
-          <label style={styles.label}>
-            Slug (URL pública) *
-            <input
-              className="input"
-              value={form.business_slug}
-              onChange={update('business_slug')}
-              maxLength={60}
-              placeholder="artesanias-sumerce"
-              required
-            />
-            <span style={styles.hint}>
-              Tu tienda estará en{' '}
-              <code style={styles.code}>
-                /seller/{form.business_slug || 'tu-slug'}
-              </code>
-            </span>
-          </label>
-
-          <label style={styles.label}>
-            Descripción
-            <textarea
-              className="input"
-              value={form.business_description}
-              onChange={update('business_description')}
-              rows={4}
-              maxLength={1000}
-              placeholder="Cuéntale a tus clientes qué vendes, desde cuándo y qué te hace especial."
-              style={{ resize: 'vertical' }}
-            />
-          </label>
-
-          <div style={styles.row}>
-            <label style={{ ...styles.label, flex: 1 }}>
-              WhatsApp
-              <input
-                type="tel"
-                className="input"
-                value={form.business_whatsapp}
-                onChange={update('business_whatsapp')}
-                maxLength={10}
-                inputMode="numeric"
-                placeholder="3001234567"
+      {/* Cabecera con logo */}
+      <div className="bp-header">
+        <div className="bp-logo-wrap">
+          <div className="bp-logo">
+            {profile.business_logo_url ? (
+              <img
+                src={profile.business_logo_url}
+                alt="Logo del negocio"
+                className="bp-logo-img"
               />
-            </label>
-            <label style={{ ...styles.label, flex: 2 }}>
-              Dirección
-              <input
-                className="input"
-                value={form.business_address}
-                onChange={update('business_address')}
-                maxLength={200}
-                placeholder="Carrera 7 # 12-34"
-              />
-            </label>
+            ) : (
+              <div className="bp-logo-empty">Logo</div>
+            )}
           </div>
 
-          <div style={styles.row}>
-            <label style={{ ...styles.label, flex: 1 }}>
-              Departamento
-              <select
-                className="select"
-                value={form.business_department}
-                onChange={update('business_department')}
-              >
-                <option value="">Selecciona…</option>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            </label>
-            <label style={{ ...styles.label, flex: 1 }}>
-              Ciudad
-              <select
-                className="select"
-                value={form.business_city}
-                onChange={update('business_city')}
-                disabled={!form.business_department}
-              >
-                <option value="">
-                  {form.business_department ? 'Selecciona…' : 'Elige depto. primero'}
-                </option>
-                {cities.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <button
+            type="button"
+            className="bp-logo-btn"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo}
+            title="Cambiar logo"
+          >
+            {uploadingLogo ? '...' : '✏️'}
+          </button>
 
-          <label style={styles.label}>
-            URL del logo
-            <input
-              type="url"
-              className="input"
-              value={form.business_logo_url}
-              onChange={update('business_logo_url')}
-              maxLength={500}
-              placeholder="https://..."
-            />
-          </label>
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={onLogoChange}
+            hidden
+          />
+        </div>
 
-          <label style={styles.label}>
-            URL de la portada
-            <input
-              type="url"
-              className="input"
-              value={form.business_cover_url}
-              onChange={update('business_cover_url')}
-              maxLength={500}
-              placeholder="https://..."
-            />
-          </label>
-
-          {error && <div className="error-msg">{error}</div>}
-          {success && <div style={styles.success}>{success}</div>}
-
-          <div style={styles.actions}>
-            <button type="submit" className="btn" disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar negocio'}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
-/* -------------------- Vista previa -------------------- */
-
-function PreviewBanner({ form }) {
-  const hasCover = Boolean(form.business_cover_url);
-  const hasLogo = Boolean(form.business_logo_url);
-  return (
-    <div style={styles.preview}>
-      <div
-        style={{
-          ...styles.previewCover,
-          backgroundImage: hasCover ? `url(${form.business_cover_url})` : 'none',
-          background: hasCover
-            ? `url(${form.business_cover_url}) center/cover no-repeat`
-            : 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)'
-        }}
-        aria-label="Vista previa de la portada"
-      />
-      <div style={styles.previewBody}>
-        <div style={styles.previewLogo}>
-          {hasLogo ? (
-            <img
-              src={form.business_logo_url}
-              alt="Logo del negocio"
-              style={styles.previewLogoImg}
-            />
-          ) : (
-            <span style={{ fontSize: 28 }} aria-hidden>🛍️</span>
+        <div className="bp-title">
+          <h1>{profile.business_name || 'Mi Negocio'}</h1>
+          {profile.business_category && (
+            <p className="bp-subtitle">{profile.business_category}</p>
           )}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={styles.previewName}>
-            {form.business_name || 'Nombre de tu negocio'}
-          </div>
-          <div style={styles.previewMeta}>
-            {(form.business_city || form.business_department)
-              ? `${form.business_city || ''}${form.business_city && form.business_department ? ', ' : ''}${form.business_department || ''}`
-              : 'Ciudad / Departamento'}
-          </div>
+
+        <div className="bp-actions">
+          <button
+            type="button"
+            className="bp-btn-secondary"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo}
+          >
+            {uploadingLogo ? 'Subiendo logo...' : 'Cambiar logo'}
+          </button>
         </div>
       </div>
-    </div>
-  );
-}
 
-const styles = {
-  wrap: { paddingTop: 16 },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    flexWrap: 'wrap',
-    padding: '0 8px'
-  },
-  h1: { margin: 0, fontSize: 24 },
-  intro: {
-    color: '#6b7280',
-    padding: '0 8px',
-    margin: '8px 0 16px 0'
-  },
-  code: {
-    background: '#f3f4f6',
-    padding: '2px 6px',
-    borderRadius: 4,
-    fontSize: 13
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-    marginTop: 8
-  },
-  row: { display: 'flex', gap: 12, flexWrap: 'wrap' },
-  label: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#374151'
-  },
-  hint: {
-    fontWeight: 400,
-    fontSize: 12,
-    color: '#6b7280'
-  },
-  success: {
-    background: '#ecfdf5',
-    color: '#065f46',
-    border: '1px solid #a7f3d0',
-    borderRadius: 8,
-    padding: '10px 12px',
-    fontSize: 14
-  },
-  actions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 4
-  },
-  preview: {
-    border: '1px solid #e5e7eb',
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 4
-  },
-  previewCover: {
-    height: 120,
-    width: '100%'
-  },
-  previewBody: {
-    display: 'flex',
-    gap: 12,
-    alignItems: 'center',
-    padding: 12,
-    background: '#fff'
-  },
-  previewLogo: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    background: '#f3f4f6',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    border: '1px solid #e5e7eb',
-    flexShrink: 0
-  },
-  previewLogoImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover'
-  },
-  previewName: {
-    fontWeight: 700,
-    fontSize: 18,
-    color: '#1a1f36',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  },
-  previewMeta: {
-    fontSize: 13,
-    color: '#6b7280'
-  }
-};
+      {/* Mensajes */}
+      {error && <div className="bp-alert bp-alert-error">{error}</div>}
+      {okMsg && <div className="bp-alert bp-alert-ok">{okMsg}</div>}
+
+      {/* Formulario de datos del negocio */}
+      <form className="bp-form" onSubmit={handleSave}>
+        <h2>Información del negocio</h2>
+
+        <div className="bp-grid">
+          <div className="bp-field">
+            <label htmlFor="business_name">Nombre del negocio</label>
+            <input
+              id="business_name"
+              name="business_name"
+              type="text"
+              value={profile.business_name}
+              onChange={handleChange}
+              placeholder="Ej: Panadería La Espiga"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="business_category">Categoría</label>
+            <input
+              id="business_category"
+              name="business_category"
+              type="text"
+              value={profile.business_category}
+              onChange={handleChange}
+              placeholder="Ej: Alimentos, Moda, Tecnología"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="business_phone">Teléfono</label>
+            <input
+              id="business_phone"
+              name="business_phone"
+              type="tel"
+              value={profile.business_phone}
+              onChange={handleChange}
+              placeholder="Ej: 3001234567"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label htmlFor="business_city">Ciudad</label>
+            <input
+              id="business_city"
+              name="business_city"
+              type="text"
+              value={profile.business_city}
+              onChange={handleChange}
+              placeholder="Ej: Bogotá"
+            />
+          </div>
+
+          <div className="bp-field bp-field-full">
+            <label htmlFor="business_address">Dirección</label>
+            <input
+              id="business_address"
+              name="business_address"
+              type="text"
+              value={profile.business_address}
+              onChange={handleChange}
+              placeholder="Ej: Calle 123 #45-67"
+            />
+          </div>
+
+          <div className="bp-field bp-field-full">
+            <label htmlFor="business_description">Descripción</label>
+            <textarea
+              id="business_description"
+              name="business_description"
+              rows="4"
+              value={profile.business_description}
+              onChange={handleChange}
+              placeholder="Cuenta a tus clientes qué ofreces..."
+            />
+          </div>
+        </div>
+
+        <div className="bp-form-actions">
+          <button type="submit" className="bp-btn-primary" disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
