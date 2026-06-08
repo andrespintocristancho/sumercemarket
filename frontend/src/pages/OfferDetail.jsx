@@ -202,7 +202,7 @@ export default function OfferDetail() {
 
       await supabase.from('contact_events').insert({
         offer_id: offer.id,
-        user_id: user?.id || null,
+        contacter_id: user?.id || null,
         channel: 'whatsapp'
       });
     } catch (e) {
