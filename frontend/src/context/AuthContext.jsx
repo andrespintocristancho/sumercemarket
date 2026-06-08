@@ -1,28 +1,32 @@
 // Contexto global de autenticación basado en Supabase Auth.
 //
-// Expone:
-//   - session
-//   - user                  (supabase.auth user)
-//   - profile               (row de la tabla `profiles`)
-//   - role                  (profile.role o null)
-//   - userWithProfile       ({ ...user, profile, role })
-//   - loading               (true mientras NO sabemos si hay sesión)
-//   - profileLoading        (true mientras se está consultando profiles)
-//   - isAuthenticated, isAdmin
-//   - signUp, signIn, signOut, refreshProfile
+// Expone (según contrato fijado):
+//   - user            (supabase.auth user)
+//   - profile         (row completo de public.profiles)
+//   - role            (profile?.role || null)
+//   - isAdmin         (profile?.role === 'admin')
+//   - loading         (true mientras no sabemos si hay sesión)
+//   - profileLoading  (true mientras se consulta profiles)
 //
-// Bug previo: `loading` solo cubría la sesión inicial. Cuando el usuario
-// se autenticaba, `onAuthStateChange` disparaba `loadProfile` de forma
-// asíncrona y los consumidores (p.ej. ProtectedRoute adminOnly) leían
-// `profile = null` aunque el rol en BD fuera 'admin' y redirigían a '/'.
-// Solución: añadimos `profileLoading` y lo activamos SIEMPRE que haya
-// usuario y aún no tengamos perfil cargado. ProtectedRoute debe esperar
-// a que `profileLoading` sea false antes de decidir el acceso.
+// También expone helpers usados por el resto de la app:
+//   session, isAuthenticated, userWithProfile,
+//   signUp, signIn, signOut, refreshProfile.
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo
+} from 'react';
 import { supabase } from '../lib/supabaseClient.js';
 
 const AuthContext = createContext(null);
+
+// Flag de desarrollo para los console.log de debug.
+const IS_DEV =
+  (typeof import.meta !== 'undefined' && import.meta?.env?.DEV) === true;
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -31,8 +35,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Cargar perfil desde la tabla `profiles` para el usuario actual.
-  // Hace SELECT id, role, ... WHERE id = uid.
+  // Carga el perfil desde Supabase con el contrato pedido:
+  //   from('profiles').select('*').eq('id', user.id).maybeSingle()
   const loadProfile = useCallback(async (uid) => {
     if (!uid) {
       setProfile(null);
@@ -43,7 +47,7 @@ export function AuthProvider({ children }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, phone, department, city, role, created_at')
+        .select('*')
         .eq('id', uid)
         .maybeSingle();
 
@@ -71,11 +75,11 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     (async () => {
-      // 1) Obtener sesión y usuario actuales desde Supabase Auth.
+      // 1) Sesión actual
       const { data: sessionRes } = await supabase.auth.getSession();
       const currentSession = sessionRes?.session ?? null;
 
-      // Usamos también getUser() para asegurarnos de tener el user "fresco".
+      // Reforzamos con getUser() para tener el usuario "fresco".
       let currentUser = currentSession?.user ?? null;
       try {
         const { data: userRes } = await supabase.auth.getUser();
@@ -89,9 +93,9 @@ export function AuthProvider({ children }) {
       setSession(currentSession);
       setUser(currentUser);
 
-      // 2) Si hay usuario, cargar perfil ANTES de marcar loading=false,
-      //    para que los consumidores nunca lean un estado intermedio
-      //    (user presente, profile null) en el primer render.
+      // 2) Cargar profile ANTES de marcar loading=false para evitar
+      //    el estado intermedio (user presente, profile null) que
+      //    hacía que ProtectedRoute decidiera mal.
       if (currentUser?.id) {
         await loadProfile(currentUser.id);
       } else {
@@ -102,23 +106,23 @@ export function AuthProvider({ children }) {
       setLoading(false);
     })();
 
-    // 3) Suscripción a cambios de auth (login, logout, refresh token, etc.)
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) return;
+    // 3) Cambios de auth (login, logout, refresh token, etc.)
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, nextSession) => {
+        if (!mounted) return;
 
-      setSession(nextSession);
-      const nextUser = nextSession?.user ?? null;
-      setUser(nextUser);
+        setSession(nextSession);
+        const nextUser = nextSession?.user ?? null;
+        setUser(nextUser);
 
-      if (nextUser?.id) {
-        // Activamos profileLoading inmediatamente para que ProtectedRoute
-        // no decida con `profile = null` durante la transición.
-        setProfileLoading(true);
-        await loadProfile(nextUser.id);
-      } else {
-        setProfile(null);
+        if (nextUser?.id) {
+          setProfileLoading(true);
+          await loadProfile(nextUser.id);
+        } else {
+          setProfile(null);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -126,98 +130,122 @@ export function AuthProvider({ children }) {
     };
   }, [loadProfile]);
 
-  // Registro: crea usuario en Auth y un row en profiles.
-  const signUp = useCallback(async ({ name, email, password, phone, department, city }) => {
-    const cleanEmail = String(email || '').trim().toLowerCase();
-    const cleanName = String(name || '').trim();
-    const cleanPhone = String(phone || '').trim();
+  // ---------------- Auth actions ----------------
 
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        data: {
+  const signUp = useCallback(
+    async ({ name, email, password, phone, department, city }) => {
+      const cleanEmail = String(email || '').trim().toLowerCase();
+      const cleanName = String(name || '').trim();
+      const cleanPhone = String(phone || '').trim();
+
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            name: cleanName,
+            phone: cleanPhone,
+            department: department || '',
+            city: city || ''
+          }
+        }
+      });
+      if (error) throw error;
+
+      const newUser = data?.user;
+      if (newUser?.id) {
+        const profileRow = {
+          id: newUser.id,
           name: cleanName,
           phone: cleanPhone,
           department: department || '',
-          city: city || ''
+          city: city || '',
+          role: 'user'
+        };
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(profileRow, { onConflict: 'id' });
+
+        if (profileError) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[AuthContext] No se pudo crear el perfil:',
+            profileError.message
+          );
         }
       }
-    });
-    if (error) throw error;
 
-    const newUser = data?.user;
-    if (newUser?.id) {
-      const profileRow = {
-        id: newUser.id,
-        name: cleanName,
-        phone: cleanPhone,
-        department: department || '',
-        city: city || '',
-        role: 'user'
-      };
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(profileRow, { onConflict: 'id' });
+      return data;
+    },
+    []
+  );
 
-      if (profileError) {
-        // eslint-disable-next-line no-console
-        console.warn('[AuthContext] No se pudo crear el perfil:', profileError.message);
+  const signIn = useCallback(
+    async ({ email, password }) => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: String(email || '').trim().toLowerCase(),
+        password
+      });
+      if (error) throw error;
+
+      // Cargamos el perfil inmediatamente para que `role` y `isAdmin`
+      // estén disponibles sin esperar al evento onAuthStateChange.
+      if (data?.user?.id) {
+        await loadProfile(data.user.id);
       }
-    }
+      return data;
+    },
+    [loadProfile]
+  );
 
-    return data;
-  }, []);
-
-  // Login email + password.
-  const signIn = useCallback(async ({ email, password }) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: String(email || '').trim().toLowerCase(),
-      password
-    });
-    if (error) throw error;
-
-    // Forzamos la recarga del perfil tras el login para que `role`
-    // esté disponible inmediatamente, sin esperar al evento.
-    if (data?.user?.id) {
-      await loadProfile(data.user.id);
-    }
-    return data;
-  }, [loadProfile]);
-
-  // Logout.
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
   }, []);
 
-  // role expuesto explícitamente, según requisito.
-  const role = profile?.role ?? null;
+  // ---------------- Derivados ----------------
 
-  // userWithProfile: combinación útil para consumidores.
+  const role = profile?.role || null;
+  const isAdmin = profile?.role === 'admin';
+
   const userWithProfile = useMemo(() => {
     if (!user) return null;
     return { ...user, profile, role };
   }, [user, profile, role]);
+
+  // Debug solo en desarrollo.
+  useEffect(() => {
+    if (!IS_DEV) return;
+    if (loading || profileLoading) return;
+    // eslint-disable-next-line no-console
+    console.log('AUTH DEBUG', {
+      userId: user?.id,
+      profile,
+      role,
+      isAdmin
+    });
+  }, [user, profile, role, isAdmin, loading, profileLoading]);
 
   const value = {
     session,
     user,
     profile,
     role,
+    isAdmin,
+    isAuthenticated: Boolean(user),
     userWithProfile,
     loading,
     profileLoading,
-    isAuthenticated: Boolean(user),
-    isAdmin: role === 'admin',
     signUp,
     signIn,
     signOut,
     refreshProfile
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
