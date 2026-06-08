@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../services/supabaseClient'
+import { supabase } from '../lib/supabaseClient'
 import { useNavigate } from 'react-router-dom'
-import '../styles/BusinessProfile.css'
 
 const BUCKET = 'business-assets'
 
@@ -263,33 +262,152 @@ export default function BusinessProfile() {
     }
   }
 
+  // Estilos inline mínimos para no depender de un CSS externo.
+  // Las clases base (container, btn, btn-primary, btn-secondary, alert, etc.)
+  // se asumen presentes en App.css; aquí solo añadimos lo específico
+  // (portada y logo circular estilo Facebook).
+  const styles = {
+    cover: {
+      position: 'relative',
+      width: '100%',
+      height: '260px',
+      background: '#e4e6eb',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      marginBottom: '64px',
+    },
+    coverImg: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      display: 'block',
+    },
+    coverEmpty: {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#65676b',
+      fontWeight: 600,
+    },
+    coverBtn: {
+      position: 'absolute',
+      right: '16px',
+      bottom: '16px',
+      padding: '8px 14px',
+      borderRadius: '8px',
+      border: '0',
+      background: 'rgba(0,0,0,0.65)',
+      color: '#fff',
+      cursor: 'pointer',
+      fontWeight: 600,
+    },
+    header: {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '16px',
+      marginTop: '-80px',
+      padding: '0 16px',
+      flexWrap: 'wrap',
+    },
+    logoWrap: {
+      position: 'relative',
+      width: '140px',
+      height: '140px',
+    },
+    logo: {
+      width: '140px',
+      height: '140px',
+      borderRadius: '50%',
+      background: '#fff',
+      border: '4px solid #fff',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      overflow: 'hidden',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    logoImg: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+    },
+    logoEmpty: {
+      color: '#65676b',
+      fontWeight: 700,
+    },
+    logoBtn: {
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      width: '36px',
+      height: '36px',
+      borderRadius: '50%',
+      border: '2px solid #fff',
+      background: '#1877f2',
+      color: '#fff',
+      cursor: 'pointer',
+      fontSize: '16px',
+      lineHeight: 1,
+    },
+    title: {
+      flex: 1,
+      minWidth: '200px',
+      paddingBottom: '8px',
+    },
+    subtitle: {
+      color: '#65676b',
+      margin: '4px 0 0',
+      fontSize: '14px',
+    },
+    actions: {
+      paddingBottom: '8px',
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+      gap: '12px',
+      marginTop: '16px',
+    },
+    fieldFull: {
+      gridColumn: '1 / -1',
+    },
+    formActions: {
+      marginTop: '16px',
+      display: 'flex',
+      justifyContent: 'flex-end',
+    },
+  }
+
   if (loading) {
     return (
-      <div className="bp-loading">
+      <div className="container">
         <p>Cargando perfil del negocio...</p>
       </div>
     )
   }
 
   return (
-    <div className="bp-wrapper">
+    <div className="container">
       {/* Portada estilo Facebook */}
-      <div className="bp-cover">
+      <div style={styles.cover}>
         {profile.business_cover_url ? (
           <img
             src={profile.business_cover_url}
             alt="Portada del negocio"
-            className="bp-cover-img"
+            style={styles.coverImg}
           />
         ) : (
-          <div className="bp-cover-empty">
+          <div style={styles.coverEmpty}>
             <span>Sin portada</span>
           </div>
         )}
 
         <button
           type="button"
-          className="bp-cover-btn"
+          style={styles.coverBtn}
           onClick={() => coverInputRef.current?.click()}
           disabled={uploadingCover}
         >
@@ -306,23 +424,23 @@ export default function BusinessProfile() {
       </div>
 
       {/* Cabecera con logo */}
-      <div className="bp-header">
-        <div className="bp-logo-wrap">
-          <div className="bp-logo">
+      <div style={styles.header}>
+        <div style={styles.logoWrap}>
+          <div style={styles.logo}>
             {profile.business_logo_url ? (
               <img
                 src={profile.business_logo_url}
                 alt="Logo del negocio"
-                className="bp-logo-img"
+                style={styles.logoImg}
               />
             ) : (
-              <div className="bp-logo-empty">Logo</div>
+              <div style={styles.logoEmpty}>Logo</div>
             )}
           </div>
 
           <button
             type="button"
-            className="bp-logo-btn"
+            style={styles.logoBtn}
             onClick={() => logoInputRef.current?.click()}
             disabled={uploadingLogo}
             title="Cambiar logo"
@@ -339,19 +457,19 @@ export default function BusinessProfile() {
           />
         </div>
 
-        <div className="bp-title">
-          <h1>{profile.business_name || 'Mi Negocio'}</h1>
+        <div style={styles.title}>
+          <h1 style={{ margin: 0 }}>{profile.business_name || 'Mi Negocio'}</h1>
           {profile.business_slug && (
-            <p className="bp-subtitle">
+            <p style={styles.subtitle}>
               URL pública: <code>/seller/{profile.business_slug}</code>
             </p>
           )}
         </div>
 
-        <div className="bp-actions">
+        <div style={styles.actions}>
           <button
             type="button"
-            className="bp-btn-secondary"
+            className="btn btn-secondary"
             onClick={() => logoInputRef.current?.click()}
             disabled={uploadingLogo}
           >
@@ -361,15 +479,15 @@ export default function BusinessProfile() {
       </div>
 
       {/* Mensajes */}
-      {error && <div className="bp-alert bp-alert-error">{error}</div>}
-      {okMsg && <div className="bp-alert bp-alert-ok">{okMsg}</div>}
+      {error && <div className="alert alert-error" style={{ marginTop: 16 }}>{error}</div>}
+      {okMsg && <div className="alert alert-success" style={{ marginTop: 16 }}>{okMsg}</div>}
 
       {/* Formulario de datos del negocio */}
-      <form className="bp-form" onSubmit={handleSave}>
+      <form onSubmit={handleSave} style={{ marginTop: 24 }}>
         <h2>Información del negocio</h2>
 
-        <div className="bp-grid">
-          <div className="bp-field">
+        <div style={styles.grid}>
+          <div className="form-group">
             <label htmlFor="business_name">Nombre del negocio</label>
             <input
               id="business_name"
@@ -381,7 +499,7 @@ export default function BusinessProfile() {
             />
           </div>
 
-          <div className="bp-field">
+          <div className="form-group">
             <label htmlFor="business_slug">
               Identificador de tienda (slug)
             </label>
@@ -396,7 +514,7 @@ export default function BusinessProfile() {
             <small>Se usa en la URL pública: /seller/&lt;slug&gt;</small>
           </div>
 
-          <div className="bp-field">
+          <div className="form-group">
             <label htmlFor="business_whatsapp">WhatsApp</label>
             <input
               id="business_whatsapp"
@@ -409,7 +527,7 @@ export default function BusinessProfile() {
             <small>Incluye indicativo del país sin signos (ej: 57…).</small>
           </div>
 
-          <div className="bp-field">
+          <div className="form-group">
             <label htmlFor="business_department">Departamento</label>
             <input
               id="business_department"
@@ -421,7 +539,7 @@ export default function BusinessProfile() {
             />
           </div>
 
-          <div className="bp-field">
+          <div className="form-group">
             <label htmlFor="business_city">Ciudad / Municipio</label>
             <input
               id="business_city"
@@ -433,7 +551,7 @@ export default function BusinessProfile() {
             />
           </div>
 
-          <div className="bp-field bp-field-full">
+          <div className="form-group" style={styles.fieldFull}>
             <label htmlFor="business_address">Dirección</label>
             <input
               id="business_address"
@@ -445,7 +563,7 @@ export default function BusinessProfile() {
             />
           </div>
 
-          <div className="bp-field bp-field-full">
+          <div className="form-group" style={styles.fieldFull}>
             <label htmlFor="business_description">Descripción</label>
             <textarea
               id="business_description"
@@ -458,8 +576,8 @@ export default function BusinessProfile() {
           </div>
         </div>
 
-        <div className="bp-form-actions">
-          <button type="submit" className="bp-btn-primary" disabled={saving}>
+        <div style={styles.formActions}>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </div>
