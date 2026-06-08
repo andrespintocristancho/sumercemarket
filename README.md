@@ -112,6 +112,23 @@ npm run dev
 
 Abre `http://localhost:5173/`. Si las variables de entorno son correctas y las tablas están creadas, podrás registrarte, iniciar sesión y consultar/crear ofertas.
 
+## Optimización de imágenes (en el navegador)
+
+Para ahorrar espacio en Supabase Storage y acelerar la carga de la app, **las fotos se optimizan en el navegador antes de subirse**. Esta lógica vive en `frontend/src/components/ImageUploader.jsx` (función `compressImage`) y se aplica de forma transparente al usuario:
+
+- **Formatos aceptados de entrada:** JPG, JPEG, PNG y WebP.
+- **Validación previa:** tipo MIME y tamaño máximo (5 MB por archivo).
+- **Redimensionado:** ancho/alto máximo **1200×1200 px**, manteniendo proporción.
+- **Recompresión** con `canvas.toBlob`:
+  - **Formato preferido:** `image/webp` con `quality = 0.75`.
+  - **Fallback:** `image/jpeg` con `quality = 0.75` si el navegador no soporta WebP.
+- **Si la versión "optimizada" pesara más que la original**, se devuelve la original (mejor para fotos ya pequeñas).
+- **Fallback de seguridad:** si por cualquier razón el proceso de optimización falla, se usa el archivo original. **La publicación nunca se rompe por la compresión.**
+- **Límite de fotos por oferta:** **5**.
+- **Preview**: el `ImageUploader` muestra la previsualización y el tamaño en KB/MB de la **versión optimizada**, no de la original.
+
+En `Publish.jsx`, esa lista de archivos optimizados es la que se sube al bucket `offer-images`. Por cada imagen se guarda un registro en `offer_images` con `offer_id`, `url`, `path` y `position`, y la primera se asigna a `offers.image_url` como imagen principal.
+
 ## Modelo de datos
 
 Todas las tablas viven en el esquema `public` y están definidas en [`supabase/schema.sql`](./supabase/schema.sql). El esquema coincide **exactamente** con los campos que usa el frontend actual: no se usan `municipality`, ni `is_active`, ni `category_id`, ni una tabla `categories`.
