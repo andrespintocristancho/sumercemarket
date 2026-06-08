@@ -1,11 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
+const IS_DEV =
+  (typeof import.meta !== 'undefined' && import.meta?.env?.DEV) === true;
+
 export default function Navbar() {
-  const { user, profile, isAdmin, signOut, loading } = useAuth();
+  const {
+    user,
+    profile,
+    role,
+    isAdmin,
+    loading,
+    profileLoading,
+    signOut
+  } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  // Debug en desarrollo: ayuda a verificar por qué no aparece el enlace Admin.
+  useEffect(() => {
+    if (!IS_DEV) return;
+    if (loading || profileLoading) return;
+    // eslint-disable-next-line no-console
+    console.log('AUTH DEBUG', {
+      userId: user?.id,
+      profile,
+      role,
+      isAdmin
+    });
+  }, [user, profile, role, isAdmin, loading, profileLoading]);
 
   const handleLogout = async () => {
     try {
@@ -45,9 +69,12 @@ export default function Navbar() {
             <>
               <NavLink to="/publish" style={navStyle} onClick={close}>Publicar</NavLink>
               <NavLink to="/my-offers" style={navStyle} onClick={close}>Mis ofertas</NavLink>
-              {isAdmin && (
+
+              {/* Enlace Admin: visible solo si el role en `profiles` es 'admin'. */}
+              {isAdmin === true && (
                 <NavLink to="/admin" style={navStyle} onClick={close}>Admin</NavLink>
               )}
+
               <span style={styles.userInfo} title={profile?.name || user.email}>
                 Hola, {profile?.name?.split(' ')[0] || user.email}
               </span>
