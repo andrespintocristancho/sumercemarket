@@ -264,6 +264,8 @@ Abre http://localhost:5173
 ```
 frontend/
 ├── index.html
+├── manifest.json
+├── sw.js
 ├── package.json
 ├── vite.config.js
 └── src/
@@ -279,6 +281,77 @@ frontend/
     ├── context/
     └── services/
 ```
+
+---
+
+## 📱 PWA (Progressive Web App)
+
+SumerceMarket ahora se puede **instalar como app** en Android, escritorio (Chrome / Edge) y, con limitaciones, en iOS.
+
+### Archivos que componen la PWA
+
+- `frontend/manifest.json` → metadatos de la app (nombre, colores, íconos, `display: standalone`).
+- `frontend/sw.js` → service worker con:
+  - **Cache-first** para assets estáticos (JS, CSS, imágenes, fuentes).
+  - **Network-first** para navegaciones (HTML / SPA routing), con fallback a `/index.html` si no hay red.
+  - **Nunca cachea** llamadas a Supabase (`*.supabase.co`, `/auth`, `/rest/v1`, `/storage/v1`, `/realtime/v1`) para no exponer datos sensibles ni servir respuestas obsoletas de autenticación.
+- `frontend/index.html` → enlaza `manifest.json`, define `theme-color`, descripción y `apple-touch-icon`.
+- `frontend/src/main.jsx` → registra el service worker **solo en producción** (`import.meta.env.PROD`). En `npm run dev` NO se registra para no interferir con el HMR de Vite.
+
+### Iconos placeholder
+
+El manifest referencia íconos en `/icons/`:
+
+```
+frontend/public/icons/icon-192.png
+frontend/public/icons/icon-512.png
+frontend/public/icons/icon-maskable-192.png
+frontend/public/icons/icon-maskable-512.png
+```
+
+Si aún no existen, coloca tus propios PNG en esa carpeta (cualquier generador como [pwabuilder.com](https://www.pwabuilder.com/imageGenerator) o [realfavicongenerator.net](https://realfavicongenerator.net/) sirve). Mientras tanto, la app sigue funcionando; solo el aviso de instalación puede no aparecer hasta que existan los íconos válidos.
+
+> **Nota:** Estos archivos van en `frontend/public/icons/` para que Vite los copie tal cual a la raíz del build.
+
+### Cómo probar la PWA en local
+
+1. Genera el build de producción:
+   ```bash
+   cd frontend
+   npm run build
+   npm run preview
+   ```
+2. Abre la URL que muestra `vite preview` (normalmente `http://localhost:4173`).
+3. En Chrome / Edge: **DevTools → Application → Service Workers** → confirma que `sw.js` está **activated and running**.
+4. En **Application → Manifest** revisa que `name`, `short_name`, `start_url`, `display: standalone`, colores e íconos se vean correctos.
+5. En **Lighthouse → Categories → PWA** (o "Installable") corre la auditoría para validar el estado.
+
+> En `npm run dev` el service worker **no se registra a propósito**. Para probar la PWA, usa siempre `npm run build && npm run preview` o despliega a un hosting estático con HTTPS.
+
+### Cómo instalarla en Android (Chrome)
+
+1. Despliega el frontend en un hosting con HTTPS (Vercel, Netlify, Cloudflare Pages, GitHub Pages…).
+2. Abre la URL en **Chrome para Android**.
+3. Aparecerá un banner *"Agregar a la pantalla principal"* o *"Instalar app"*. Tócalo.
+4. Si no aparece automáticamente: menú **⋮** → **Instalar aplicación** / **Añadir a pantalla principal**.
+5. El ícono `Sumerce` queda en el cajón de apps y se abre en modo `standalone` (sin barra del navegador).
+
+### Cómo instalarla en escritorio (Chrome / Edge)
+
+1. Abre la URL desplegada.
+2. En la barra de direcciones aparece un ícono de **instalar** (un monitor con flecha). Haz clic.
+3. Confirma. Se crea una ventana propia tipo app y un acceso directo en el sistema.
+
+### iOS (Safari) – "Agregar a pantalla de inicio"
+
+iOS **no soporta el botón de instalación automática** ni el evento `beforeinstallprompt`. El usuario debe agregarla manualmente:
+
+1. Abre la URL en **Safari** (no en Chrome iOS).
+2. Toca el botón **Compartir** (cuadrado con flecha hacia arriba).
+3. Elige **"Agregar a pantalla de inicio"**.
+4. Confirma el nombre (`Sumerce`) y toca **Agregar**.
+
+En iOS, la app se abre en modo standalone gracias a la meta `apple-mobile-web-app-capable` y usa `apple-touch-icon` como ícono. El soporte de service workers en iOS es limitado, pero el modo instalado funciona.
 
 ---
 
