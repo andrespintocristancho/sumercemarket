@@ -1,14 +1,6 @@
 // Admin.jsx
-// Panel de administración básico.
-// Acceso restringido a usuarios con role === 'admin' en la tabla `profiles`.
-// Datos directos desde Supabase: profiles, offers, contact_events.
-//
-// Ajustes para el bug de detección admin:
-// - Usamos `role` (expuesto por AuthContext) en lugar de leer
-//   directamente profile?.role, para que cualquier consumidor
-//   tenga la misma fuente de verdad.
-// - Esperamos `profileLoading` antes de mostrar el 403, de modo que
-//   un admin nunca vea "Sin permisos" durante la carga inicial.
+// Panel de administración. Acceso restringido vía isAdmin del AuthContext.
+// No hay consulta duplicada a profiles: la fuente de verdad es el context.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -18,10 +10,15 @@ import { formatPhone } from '../data/colombia.js';
 
 const COMMISSION_RATES = [0.05, 0.06];
 
+const IS_DEV =
+  (typeof import.meta !== 'undefined' && import.meta?.env?.DEV) === true;
+
 export default function Admin() {
   const {
     user,
+    profile,
     role,
+    isAdmin,
     loading: authLoading,
     profileLoading
   } = useAuth();
@@ -37,7 +34,18 @@ export default function Admin() {
   const [offerStatus, setOfferStatus] = useState('all');
   const [userQ, setUserQ] = useState('');
 
-  const isAdmin = role === 'admin';
+  // Debug en desarrollo
+  useEffect(() => {
+    if (!IS_DEV) return;
+    if (authLoading || profileLoading) return;
+    // eslint-disable-next-line no-console
+    console.log('AUTH DEBUG', {
+      userId: user?.id,
+      profile,
+      role,
+      isAdmin
+    });
+  }, [user, profile, role, isAdmin, authLoading, profileLoading]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -120,7 +128,6 @@ export default function Admin() {
   }, [authLoading, profileLoading, isAdmin, loadAll]);
 
   // ---------- Guardas de acceso ----------
-  // Mostrar estado de carga mientras se resuelve sesión o perfil.
   if (authLoading || profileLoading) {
     return <div className="loading">Verificando acceso…</div>;
   }
