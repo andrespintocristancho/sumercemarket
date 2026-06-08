@@ -1,13 +1,25 @@
 // ImageUploader.jsx
 // Selección múltiple de imágenes con preview, validación de tipo/tamaño y
-// posibilidad de quitar elementos antes de subir. No sube nada por sí mismo:
-// expone los File seleccionados al padre vía onChange(files).
+// posibilidad de quitar elementos antes de subir.
+//
+// NOVEDAD (optimización en navegador):
+//   - Comprime cada imagen antes de exponerla al padre.
+//   - Redimensiona a un máximo de MAX_WIDTH x MAX_HEIGHT manteniendo proporción.
+//   - Convierte a WebP si el navegador puede; si no, JPEG. Quality 0.75.
+//   - Usa canvas (createImageBitmap → fallback a HTMLImageElement).
+//   - Si la optimización falla, deja el archivo ORIGINAL como fallback.
+//   - El padre recibe en `value` los File ya optimizados.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEFAULT_ACCEPT = ['image/jpeg', 'image/png', 'image/webp'];
 const DEFAULT_MAX_MB = 5;
 const DEFAULT_MAX_FILES = 5;
+
+// Límites de optimización
+const MAX_WIDTH = 1200;
+const MAX_HEIGHT = 1200;
+const QUALITY = 0.75;
 
 export default function ImageUploader({
   value = [],
@@ -20,8 +32,11 @@ export default function ImageUploader({
 }) {
   const inputRef = useRef(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  // Genera URLs de preview y las libera al desmontar / cambiar lista
+  // Genera URLs de preview y las libera al desmontar / cambiar lista.
+  // Importante: previews se generan sobre los File ya optimizados,
+  // así el usuario ve EXACTAMENTE lo que se va a subir.
   const previews = useMemo(
     () => value.map((file) => ({
       file,
@@ -39,14 +54,15 @@ export default function ImageUploader({
 
   const remaining = Math.max(0, maxFiles - value.length);
 
-  const handleFiles = (fileList) => {
+  const handleFiles = async (fileList) => {
     setError('');
     const incoming = Array.from(fileList || []);
     if (incoming.length === 0) return;
 
-    const valid = [];
     const errors = [];
+    const accepted = [];
 
+    // 1) Validación previa de tipo y tamaño (sobre el archivo original)
     for (const f of incoming) {
       if (!accept.includes(f.type)) {
         errors.push(`Formato no permitido: ${f.name}`);
@@ -56,13 +72,35 @@ export default function ImageUploader({
         errors.push(`Imagen muy grande (>${maxSizeMB}MB): ${f.name}`);
         continue;
       }
-      valid.push(f);
+      accepted.push(f);
     }
 
-    // Respeta el cupo restante
-    const next = [...value, ...valid].slice(0, maxFiles);
+    if (accepted.length === 0) {
+      if (errors.length) setError(errors.join(' '));
+      return;
+    }
 
-    if (value.length + valid.length > maxFiles) {
+    // 2) Optimización en navegador (con fallback al archivo original)
+    setBusy(true);
+    const optimized = [];
+    try {
+      for (const f of accepted) {
+        try {
+          const out = await compressImage(f);
+          optimized.push(out || f);
+        } catch {
+          // Si la compresión falla por cualquier razón, usamos el original
+          optimized.push(f);
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+
+    // 3) Respeta el cupo restante
+    const next = [...value, ...optimized].slice(0, maxFiles);
+
+    if (value.length + optimized.length > maxFiles) {
       errors.push(`Solo puedes subir hasta ${maxFiles} imágenes.`);
     }
 
@@ -70,10 +108,15 @@ export default function ImageUploader({
     onChange?.(next);
   };
 
-  const onPick = (e) => handleFiles(e.target.files);
+  const onPick = (e) => {
+    handleFiles(e.target.files);
+    // Permitir volver a seleccionar el mismo archivo si se quita
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
   const onDrop = (e) => {
     e.preventDefault();
-    if (disabled) return;
+    if (disabled || busy) return;
     handleFiles(e.dataTransfer.files);
   };
   const onDragOver = (e) => e.preventDefault();
@@ -93,7 +136,7 @@ export default function ImageUploader({
   };
 
   const openPicker = () => {
-    if (!disabled) inputRef.current?.click();
+    if (!disabled && !busy) inputRef.current?.click();
   };
 
   return (
@@ -108,7 +151,7 @@ export default function ImageUploader({
       <div
         style={{
           ...styles.dropzone,
-          ...(disabled ? styles.dropzoneDisabled : null)
+          ...(disabled || busy ? styles.dropzoneDisabled : null)
         }}
         onClick={openPicker}
         onDrop={onDrop}
@@ -117,15 +160,19 @@ export default function ImageUploader({
         tabIndex={0}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && openPicker()}
         aria-label="Seleccionar imágenes"
+        aria-busy={busy ? 'true' : 'false'}
       >
         <div style={styles.dropIcon} aria-hidden>📷</div>
         <div style={styles.dropTitle}>
-          {remaining === 0
-            ? 'Has alcanzado el límite de imágenes'
-            : 'Haz clic o arrastra imágenes aquí'}
+          {busy
+            ? 'Optimizando imágenes…'
+            : remaining === 0
+              ? 'Has alcanzado el límite de imágenes'
+              : 'Haz clic o arrastra imágenes aquí'}
         </div>
         <div style={styles.dropHint}>
           JPG, PNG o WebP · máx. {maxSizeMB} MB · hasta {maxFiles} fotos
+          {` · se optimizan a ${MAX_WIDTH}×${MAX_HEIGHT} WebP (q=${QUALITY})`}
         </div>
         <input
           ref={inputRef}
@@ -134,7 +181,7 @@ export default function ImageUploader({
           multiple
           hidden
           onChange={onPick}
-          disabled={disabled || remaining === 0}
+          disabled={disabled || busy || remaining === 0}
         />
       </div>
 
@@ -146,13 +193,16 @@ export default function ImageUploader({
             <li key={`${p.file.name}-${idx}`} style={styles.thumb}>
               <img src={p.url} alt={p.file.name} style={styles.img} />
               {idx === 0 && <span style={styles.badge}>Principal</span>}
+              <span style={styles.sizeBadge} title={p.file.type || ''}>
+                {formatBytes(p.file.size)}
+              </span>
               <div style={styles.thumbActions}>
                 <button
                   type="button"
                   className="btn btn-ghost"
                   style={styles.iconBtn}
                   onClick={() => moveTo(idx, idx - 1)}
-                  disabled={idx === 0 || disabled}
+                  disabled={idx === 0 || disabled || busy}
                   aria-label="Mover arriba"
                   title="Mover a izquierda"
                 >
@@ -163,7 +213,7 @@ export default function ImageUploader({
                   className="btn btn-ghost"
                   style={styles.iconBtn}
                   onClick={() => moveTo(idx, idx + 1)}
-                  disabled={idx === value.length - 1 || disabled}
+                  disabled={idx === value.length - 1 || disabled || busy}
                   aria-label="Mover abajo"
                   title="Mover a derecha"
                 >
@@ -174,7 +224,7 @@ export default function ImageUploader({
                   className="btn btn-danger"
                   style={styles.iconBtn}
                   onClick={() => removeAt(idx)}
-                  disabled={disabled}
+                  disabled={disabled || busy}
                   aria-label="Quitar imagen"
                   title="Quitar"
                 >
@@ -187,6 +237,143 @@ export default function ImageUploader({
       )}
     </div>
   );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimización
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Comprime una imagen en el navegador:
+ *   - Redimensiona a un máximo de MAX_WIDTH x MAX_HEIGHT manteniendo proporción.
+ *   - Devuelve un nuevo File con extensión .webp (o .jpg de fallback).
+ *   - Si el resultado fuese MÁS grande que el original, devuelve el original.
+ *   - Si algo falla, lanza para que el llamador caiga al fallback.
+ */
+export async function compressImage(file) {
+  if (!file || !(file instanceof Blob)) return file;
+
+  // 1) Cargar como bitmap (rápido) o como HTMLImageElement (fallback)
+  let bitmap = null;
+  let img = null;
+  let width = 0;
+  let height = 0;
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      bitmap = await createImageBitmap(file);
+      width = bitmap.width;
+      height = bitmap.height;
+    } catch {
+      bitmap = null;
+    }
+  }
+
+  if (!bitmap) {
+    img = await loadHtmlImage(file);
+    width = img.naturalWidth;
+    height = img.naturalHeight;
+  }
+
+  if (!width || !height) {
+    throw new Error('No se pudieron leer las dimensiones de la imagen.');
+  }
+
+  // 2) Calcular nuevas dimensiones manteniendo proporción
+  const { w, h } = fitInside(width, height, MAX_WIDTH, MAX_HEIGHT);
+
+  // 3) Pintar en canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D no disponible.');
+
+  // Mejora la calidad al reescalar
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  if (bitmap) {
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    if (typeof bitmap.close === 'function') bitmap.close();
+  } else if (img) {
+    ctx.drawImage(img, 0, 0, w, h);
+  }
+
+  // 4) Intentar WebP; si no, JPEG
+  let blob = await canvasToBlob(canvas, 'image/webp', QUALITY);
+  let outType = 'image/webp';
+  let outExt = 'webp';
+
+  if (!blob || blob.size === 0) {
+    blob = await canvasToBlob(canvas, 'image/jpeg', QUALITY);
+    outType = 'image/jpeg';
+    outExt = 'jpg';
+  }
+
+  if (!blob) throw new Error('No se pudo generar la imagen optimizada.');
+
+  // 5) Si la "optimización" pesa más que el original, devolver el original
+  //    (manteniendo nombre y tipo). Mejor para fotos ya pequeñas.
+  if (blob.size >= file.size) {
+    return file;
+  }
+
+  const baseName = stripExt(file.name || 'image');
+  const outName = `${baseName}.${outExt}`;
+  return new File([blob], outName, {
+    type: outType,
+    lastModified: Date.now()
+  });
+}
+
+function fitInside(srcW, srcH, maxW, maxH) {
+  if (srcW <= maxW && srcH <= maxH) {
+    return { w: srcW, h: srcH };
+  }
+  const ratio = Math.min(maxW / srcW, maxH / srcH);
+  return {
+    w: Math.max(1, Math.round(srcW * ratio)),
+    h: Math.max(1, Math.round(srcH * ratio))
+  };
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((b) => resolve(b), type, quality);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function loadHtmlImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(im);
+    };
+    im.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    im.src = url;
+  });
+}
+
+function stripExt(name) {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
+}
+
+function formatBytes(n) {
+  if (!Number.isFinite(n)) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 const styles = {
@@ -243,6 +430,17 @@ const styles = {
     background: '#2563eb',
     color: '#fff',
     fontSize: 11,
+    fontWeight: 700,
+    padding: '2px 6px',
+    borderRadius: 999
+  },
+  sizeBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    background: 'rgba(17,24,39,0.75)',
+    color: '#fff',
+    fontSize: 10,
     fontWeight: 700,
     padding: '2px 6px',
     borderRadius: 999
