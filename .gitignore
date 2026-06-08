@@ -35,13 +35,3 @@ Thumbs.db
 .parcel-cache/
 .vite/
 */.vite/
-
-# ---------------------------------------------------------------
-# Legado: archivos del antiguo backend Node + SQLite.
-# La carpeta backend/ está marcada como LEGADO (ver backend/README.md).
-# Se mantienen estas reglas para que, si alguien lo corre por error,
-# no suba la base de datos local ni los uploads.
-# ---------------------------------------------------------------
-backend/database.sqlite
-backend/database.sqlite-journal
-backend/uploads/
