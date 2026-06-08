@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
-import {
-  DEPARTMENTS,
-  citiesOf,
-  buildWhatsAppLink,
-  formatPhone
-} from '../data/colombia.js';
+import OfferCard from '../components/OfferCard.jsx';
+import { DEPARTMENTS, citiesOf } from '../data/colombia.js';
 
 const PAGE_SIZE = 12;
 
@@ -32,10 +28,28 @@ export default function Home() {
       setError('');
 
       try {
+        // Traemos todos los campos que OfferCard necesita:
+        // id, título, descripción, precio, categoría, ciudad, departamento,
+        // estado, teléfono de contacto, imagen legacy (image_url) y
+        // las imágenes nuevas vía relación offer_images (url, position).
         let query = supabase
           .from('offers')
           .select(
-            'id, title, description, price, department, city, image_url, contact_phone, contact_name, created_at',
+            `
+              id,
+              title,
+              description,
+              price,
+              category,
+              department,
+              city,
+              status,
+              image_url,
+              contact_phone,
+              contact_name,
+              created_at,
+              offer_images ( id, url, position )
+            `,
             { count: 'exact' }
           )
           .eq('status', 'active')
@@ -89,11 +103,13 @@ export default function Home() {
           placeholder="Buscar por título…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Buscar ofertas por título"
         />
         <select
           className="select"
           value={department}
           onChange={(e) => { setDepartment(e.target.value); setCity(''); }}
+          aria-label="Filtrar por departamento"
         >
           <option value="">Todos los departamentos</option>
           {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -103,6 +119,7 @@ export default function Home() {
           value={city}
           onChange={(e) => setCity(e.target.value)}
           disabled={!department}
+          aria-label="Filtrar por ciudad"
         >
           <option value="">{department ? 'Todas las ciudades' : 'Elige depto.'}</option>
           {cities.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -118,62 +135,14 @@ export default function Home() {
       ) : (
         <>
           <div style={styles.grid}>
-            {offers.map((o) => <OfferCard key={o.id} offer={o} />)}
+            {offers.map((o) => (
+              <OfferCard key={o.id} offer={o} />
+            ))}
           </div>
           <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         </>
       )}
     </div>
-  );
-}
-
-function OfferCard({ offer }) {
-  const phone = offer.contact_phone || '';
-  const waMessage = `Hola, vi tu oferta "${offer.title}" en SumerceMarket. ¿Sigue disponible?`;
-  const waLink = phone ? buildWhatsAppLink(phone, waMessage) : null;
-
-  return (
-    <article className="card" style={styles.card}>
-      <div style={styles.imgWrap}>
-        {offer.image_url ? (
-          <img src={offer.image_url} alt={offer.title} style={styles.img} loading="lazy" />
-        ) : (
-          <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
-        )}
-      </div>
-      <div style={styles.cardBody}>
-        <h3 style={styles.cardTitle}>{offer.title}</h3>
-        <div style={styles.price}>{formatPrice(offer.price)}</div>
-        <div style={styles.location}>
-          📍 {offer.city}, {offer.department}
-        </div>
-        {offer.description && (
-          <p style={styles.desc}>
-            {offer.description.length > 120
-              ? offer.description.slice(0, 120) + '…'
-              : offer.description}
-          </p>
-        )}
-        <div style={styles.cardActions}>
-          {waLink ? (
-            <a
-              className="btn"
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ background: '#25D366', borderColor: '#25D366' }}
-            >
-              💬 WhatsApp
-            </a>
-          ) : (
-            <span style={styles.noPhone}>Sin contacto</span>
-          )}
-          {phone && (
-            <span style={styles.phoneText}>{formatPhone(phone)}</span>
-          )}
-        </div>
-      </div>
-    </article>
   );
 }
 
@@ -214,16 +183,6 @@ function Pagination({ page, totalPages, onChange }) {
   );
 }
 
-function formatPrice(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '';
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0
-  }).format(n);
-}
-
 const styles = {
   hero: {
     padding: '24px 8px 8px 8px'
@@ -242,22 +201,6 @@ const styles = {
     gap: 16,
     gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))'
   },
-  card: { padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
-  imgWrap: { width: '100%', aspectRatio: '4 / 3', background: '#f3f4f6', overflow: 'hidden' },
-  img: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  imgPlaceholder: {
-    width: '100%', height: '100%',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 48, color: '#9ca3af'
-  },
-  cardBody: { padding: 12, display: 'flex', flexDirection: 'column', gap: 6, flex: 1 },
-  cardTitle: { margin: 0, fontSize: 16, lineHeight: 1.3 },
-  price: { fontSize: 18, fontWeight: 800, color: '#16a34a' },
-  location: { fontSize: 13, color: '#6b7280' },
-  desc: { margin: '4px 0', fontSize: 14, color: '#374151', flex: 1 },
-  cardActions: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 },
-  phoneText: { fontSize: 12, color: '#6b7280' },
-  noPhone: { fontSize: 13, color: '#9ca3af' },
   pagination: {
     marginTop: 16,
     display: 'flex',
