@@ -1,6 +1,12 @@
 // Admin.jsx
 // Panel de administración. Acceso restringido vía isAdmin del AuthContext.
-// No hay consulta duplicada a profiles: la fuente de verdad es el context.
+// No hay consulta duplicada a profiles para resolver el rol: la fuente
+// de verdad es el context.
+//
+// Fix: el schema de public.profiles NO tiene columna `name` ni `email`.
+// Columnas reales: id, full_name, phone, department, city, role,
+// created_at (+ otros campos del schema). Por eso las consultas y
+// el render usan `full_name` en lugar de `name`.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -72,9 +78,10 @@ export default function Admin() {
           .select('id, title, category, price, city, department, status, created_at, user_id')
           .order('created_at', { ascending: false })
           .limit(500),
+        // Columnas reales de public.profiles. NO usar `name` ni `email`.
         supabase
           .from('profiles')
-          .select('id, name, email, phone, role, created_at')
+          .select('id, full_name, phone, department, city, role, created_at')
           .order('created_at', { ascending: false })
           .limit(500)
       ]);
@@ -169,9 +176,10 @@ export default function Admin() {
     const q = userQ.trim().toLowerCase();
     if (!q) return true;
     return (
-      (u.name || '').toLowerCase().includes(q) ||
-      (u.email || '').toLowerCase().includes(q) ||
+      (u.full_name || '').toLowerCase().includes(q) ||
       (u.phone || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q) ||
+      (u.city || '').toLowerCase().includes(q) ||
       (u.role || '').toLowerCase().includes(q)
     );
   });
@@ -307,7 +315,7 @@ export default function Admin() {
                 <input
                   type="search"
                   className="input"
-                  placeholder="Buscar nombre, correo, rol…"
+                  placeholder="Buscar nombre, ciudad, rol…"
                   value={userQ}
                   onChange={(e) => setUserQ(e.target.value)}
                   style={{ minWidth: 260 }}
@@ -456,8 +464,9 @@ function UsersTable({ users }) {
         <thead>
           <tr>
             <th style={styles.th}>Nombre</th>
-            <th style={styles.th}>Email</th>
             <th style={styles.th}>WhatsApp</th>
+            <th style={styles.th}>Departamento</th>
+            <th style={styles.th}>Ciudad</th>
             <th style={styles.th}>Rol</th>
             <th style={styles.th}>Creado</th>
           </tr>
@@ -465,9 +474,10 @@ function UsersTable({ users }) {
         <tbody>
           {users.map((u) => (
             <tr key={u.id} style={styles.tr}>
-              <td style={styles.td}>{u.name || '—'}</td>
-              <td style={styles.td}>{u.email || '—'}</td>
+              <td style={styles.td}>{u.full_name || '—'}</td>
               <td style={styles.td}>{u.phone ? formatPhone(u.phone) : '—'}</td>
+              <td style={styles.td}>{u.department || '—'}</td>
+              <td style={styles.td}>{u.city || '—'}</td>
               <td style={styles.td}>
                 <RolePill role={u.role} />
               </td>
@@ -543,6 +553,9 @@ function mapError(msg) {
   }
   if (m.includes('relation') && m.includes('does not exist')) {
     return 'Falta alguna tabla esperada (profiles, offers, offer_images o contact_events).';
+  }
+  if (m.includes('column') && m.includes('does not exist')) {
+    return 'Una columna consultada no existe en el schema. Revisa los nombres reales en public.profiles / public.offers.';
   }
   return msg || 'No fue posible cargar el panel.';
 }
