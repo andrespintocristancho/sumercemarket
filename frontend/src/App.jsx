@@ -9,6 +9,7 @@ import Register from './pages/Register.jsx';
 import Publish from './pages/Publish.jsx';
 import MyOffers from './pages/MyOffers.jsx';
 import Admin from './pages/Admin.jsx';
+import OfferDetail from './pages/OfferDetail.jsx';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/offers/:id" element={<OfferDetail />} />
 
             <Route
               path="/publish"
