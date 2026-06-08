@@ -3,8 +3,18 @@
 -- ------------------------------------------------------------
 -- Este esquema está alineado EXACTAMENTE con los campos que
 -- el frontend usa hoy. No usa: municipality, is_active ni
--- category_id. Las ofertas usan `status` (active/paused/sold)
--- y `category` como texto libre.
+-- category_id. Las ofertas usan `status`
+-- (active/paused/sold/archived) y `category` como texto libre.
+--
+-- Semántica de status:
+--   - 'active'   = visible al público y al vendedor.
+--   - 'paused'   = oculta al público, visible para el vendedor.
+--   - 'sold'     = vendida; oculta al público; visible para el
+--                  vendedor y para el admin. Suma a comisión.
+--   - 'archived' = vendida + archivada por el vendedor para
+--                  ocultarla de su vista principal. Sigue
+--                  visible para el admin. NO suma a comisión.
+--                  No se borran datos históricos.
 --
 -- Cómo usar:
 --   1. Abre tu proyecto en https://app.supabase.com
@@ -48,7 +58,7 @@ create index if not exists profiles_role_idx       on public.profiles (role);
 --    Ofertas publicadas por los usuarios.
 --    OJO: usa user_id (NO owner_id, NO seller_id).
 --    OJO: usa `category` como texto, NO category_id.
---    OJO: usa `status` (active|paused|sold), NO is_active.
+--    OJO: usa `status` (active|paused|sold|archived), NO is_active.
 -- ============================================================
 create table if not exists public.offers (
     id             uuid primary key default gen_random_uuid(),
@@ -63,7 +73,7 @@ create table if not exists public.offers (
     contact_phone  text,
     contact_name   text,
     status         text not null default 'active'
-                       check (status in ('active','paused','sold')),
+                       check (status in ('active','paused','sold','archived')),
     image_url      text,
     created_at     timestamptz not null default now(),
     updated_at     timestamptz not null default now()
