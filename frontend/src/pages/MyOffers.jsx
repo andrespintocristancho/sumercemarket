@@ -3,16 +3,26 @@
 // editar campos básicos en línea y eliminar oferta + imágenes asociadas
 // (registro en BD + archivos en Storage).
 //
-// Nuevo:
-// - Botón "Marcar vendida" en cada oferta propia si status es 'active'
-//   o 'paused' (escribe offers.status = 'sold').
-// - Botón "Reactivar" en cada oferta propia si status es 'sold'
-//   (escribe offers.status = 'active').
+// Estados de oferta soportados:
+//   - active   : visible al público.
+//   - paused   : oculta al público; visible al vendedor.
+//   - sold     : vendida; oculta al público; visible al vendedor.
+//   - archived : vendida + archivada por el vendedor para ocultarla
+//                de su vista principal. No se borra. Sigue visible
+//                para el admin y para estadísticas históricas.
+//
+// Acciones por oferta:
+// - "Marcar vendida"  (active|paused -> sold)
+// - "Reactivar"       (sold|archived -> active)
+// - "Archivar"        (sold          -> archived)  ← NUEVO
+//
+// Reglas UX:
+// - El filtro por defecto ("Todas") oculta las archivadas para que
+//   no llenen la vista principal del vendedor.
+// - Existe un filtro explícito "Archivadas" para consultarlas.
 // - Los UPDATE se restringen por id Y por user_id = auth.uid() como
-//   defensa en profundidad (además de RLS), para que un usuario solo
-//   pueda cambiar el estado de sus propias ofertas.
-// - Tras el UPDATE se recarga la lista desde Supabase (fuente de verdad)
-//   para que el estado visual coincida con la BD.
+//   defensa en profundidad (además de RLS).
+// - Tras el UPDATE se recarga la lista desde Supabase (fuente de verdad).
 // - Los errores se muestran en el banner de error de la página (no alert).
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -28,7 +38,9 @@ import {
 import OfferCard from '../components/OfferCard.jsx';
 
 const BUCKET = 'offer-images';
-const STATUS_OPTIONS = ['all', 'active', 'paused', 'sold'];
+// 'all' aquí significa "Todas (sin archivadas)". Las archivadas
+// solo se muestran cuando el filtro es 'archived'.
+const STATUS_OPTIONS = ['all', 'active', 'paused', 'sold', 'archived'];
 
 export default function MyOffers() {
   const { user } = useAuth();
@@ -37,7 +49,7 @@ export default function MyOffers() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [editing, setEditing] = useState(null); // oferta en edición
-  const [sellingId, setSellingId] = useState(null); // id de oferta cuyo status se está cambiando
+  const [busyId, setBusyId] = useState(null);   // id de oferta cuyo status se está cambiando
 
   const fetchOffers = useCallback(async () => {
     if (!user?.id) return;
@@ -65,15 +77,19 @@ export default function MyOffers() {
     fetchOffers();
   }, [fetchOffers]);
 
+  // 'all' = todo excepto archivadas (vista principal del vendedor).
+  // 'archived' = solo archivadas.
+  // resto = filtro exacto por estado.
   const filtered = useMemo(() => {
-    if (filter === 'all') return offers;
+    if (filter === 'all') return offers.filter((o) => o.status !== 'archived');
     return offers.filter((o) => o.status === filter);
   }, [offers, filter]);
 
   const counts = useMemo(() => {
-    const c = { all: offers.length, active: 0, paused: 0, sold: 0 };
+    const c = { all: 0, active: 0, paused: 0, sold: 0, archived: 0 };
     for (const o of offers) {
       if (c[o.status] != null) c[o.status]++;
+      if (o.status !== 'archived') c.all++;
     }
     return c;
   }, [offers]);
@@ -106,48 +122,71 @@ export default function MyOffers() {
 
   const handleChangeStatus = async (offer, nextStatus) => {
     if (offer.status === nextStatus) return;
-    if (sellingId) return;
+    if (busyId) return;
 
-    setSellingId(offer.id);
+    setBusyId(offer.id);
     setError('');
     try {
       await updateOwnOfferStatus(offer.id, nextStatus);
     } catch (err) {
       setError('No fue posible cambiar el estado: ' + (err?.message || 'error desconocido'));
     } finally {
-      setSellingId(null);
+      setBusyId(null);
     }
   };
 
   // Botón "Marcar vendida" / "Reactivar" en cada oferta propia.
-  // - 'active' o 'paused' -> 'sold' (con confirmación)
-  // - 'sold'              -> 'active'
+  // - 'active' | 'paused'  -> 'sold' (con confirmación)
+  // - 'sold' | 'archived'  -> 'active' (reactivar)
   const handleMarkSold = async (offer) => {
-    if (!offer || sellingId) return;
+    if (!offer || busyId) return;
 
-    const isSold = offer.status === 'sold';
-    const nextStatus = isSold ? 'active' : 'sold';
+    const isSoldOrArchived = offer.status === 'sold' || offer.status === 'archived';
+    const nextStatus = isSoldOrArchived ? 'active' : 'sold';
 
-    if (!isSold) {
+    if (!isSoldOrArchived) {
       const ok = window.confirm(
         `¿Marcar la oferta "${offer.title}" como VENDIDA? Dejará de aparecer en el catálogo público.`
       );
       if (!ok) return;
     }
 
-    setSellingId(offer.id);
+    setBusyId(offer.id);
     setError('');
     try {
       await updateOwnOfferStatus(offer.id, nextStatus);
     } catch (err) {
       setError(
-        (isSold
+        (isSoldOrArchived
           ? 'No fue posible reactivar la oferta: '
           : 'No fue posible marcar la oferta como vendida: ') +
           (err?.message || 'error desconocido')
       );
     } finally {
-      setSellingId(null);
+      setBusyId(null);
+    }
+  };
+
+  // Botón "Archivar" — solo visible cuando la oferta está vendida.
+  // Cambia status de 'sold' a 'archived' para ocultarla de la vista
+  // principal del vendedor sin borrar ningún dato histórico.
+  const handleArchive = async (offer) => {
+    if (!offer || busyId) return;
+    if (offer.status !== 'sold') return;
+
+    const ok = window.confirm(
+      `¿Archivar la oferta "${offer.title}"? Dejará de aparecer en tu lista principal, pero seguirá guardada para tu historial y para el admin.`
+    );
+    if (!ok) return;
+
+    setBusyId(offer.id);
+    setError('');
+    try {
+      await updateOwnOfferStatus(offer.id, 'archived');
+    } catch (err) {
+      setError('No fue posible archivar la oferta: ' + (err?.message || 'error desconocido'));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -225,7 +264,9 @@ export default function MyOffers() {
         <div style={styles.grid}>
           {filtered.map((o) => {
             const isSold = o.status === 'sold';
-            const isBusy = sellingId === o.id;
+            const isArchived = o.status === 'archived';
+            const isSoldOrArchived = isSold || isArchived;
+            const isBusy = busyId === o.id;
             return (
               <div key={o.id} style={styles.cardWrap}>
                 <OfferCard
@@ -238,22 +279,35 @@ export default function MyOffers() {
                 <div style={styles.cardActions}>
                   <button
                     type="button"
-                    className={isSold ? 'btn btn-ghost' : 'btn'}
+                    className={isSoldOrArchived ? 'btn btn-ghost' : 'btn'}
                     onClick={() => handleMarkSold(o)}
                     disabled={isBusy}
                     title={
-                      isSold
+                      isSoldOrArchived
                         ? 'Volver a publicar la oferta como activa'
                         : 'Marcar la oferta como vendida'
                     }
-                    style={{ width: '100%' }}
+                    style={{ flex: 1 }}
                   >
                     {isBusy
                       ? '⏳ Guardando…'
-                      : isSold
+                      : isSoldOrArchived
                         ? '♻️ Reactivar'
                         : '💸 Marcar vendida'}
                   </button>
+
+                  {isSold && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => handleArchive(o)}
+                      disabled={isBusy}
+                      title="Ocultar de tu vista principal sin borrar datos"
+                      style={{ flex: 1 }}
+                    >
+                      📦 Archivar
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -277,23 +331,31 @@ function labelOf(s) {
     all: 'Todas',
     active: 'Activas',
     paused: 'Pausadas',
-    sold: 'Vendidas'
+    sold: 'Vendidas',
+    archived: 'Archivadas'
   }[s] || s;
 }
 
 function EmptyState({ filter }) {
+  const titles = {
+    all: 'Aún no tienes ofertas publicadas',
+    active: 'No tienes ofertas activas',
+    paused: 'No tienes ofertas pausadas',
+    sold: 'No tienes ofertas vendidas',
+    archived: 'No tienes ofertas archivadas'
+  };
   return (
     <div className="card" style={{ marginTop: 16, textAlign: 'center', padding: 32 }}>
-      <div style={{ fontSize: 48 }}>📭</div>
-      <h3 style={{ margin: '8px 0' }}>
-        {filter === 'all'
-          ? 'Aún no tienes ofertas publicadas'
-          : 'No tienes ofertas en este estado'}
-      </h3>
+      <div style={{ fontSize: 48 }}>{filter === 'archived' ? '📦' : '📭'}</div>
+      <h3 style={{ margin: '8px 0' }}>{titles[filter] || titles.all}</h3>
       <p style={{ color: '#6b7280', margin: '0 0 12px 0' }}>
-        Empieza a vender publicando tu primer producto.
+        {filter === 'archived'
+          ? 'Aquí aparecerán las ofertas vendidas que decidas archivar.'
+          : 'Empieza a vender publicando tu primer producto.'}
       </p>
-      <Link to="/publish" className="btn">+ Publicar oferta</Link>
+      {filter !== 'archived' && (
+        <Link to="/publish" className="btn">+ Publicar oferta</Link>
+      )}
     </div>
   );
 }
@@ -552,7 +614,8 @@ const styles = {
   },
   cardActions: {
     display: 'flex',
-    gap: 8
+    gap: 8,
+    flexWrap: 'wrap'
   },
   backdrop: {
     position: 'fixed',
