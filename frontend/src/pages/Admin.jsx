@@ -8,23 +8,18 @@
 // created_at (+ otros campos del schema). Por eso las consultas y
 // el render usan `full_name` en lugar de `name`.
 //
-// Fix botón Pausar/Activar:
-// - El toggle escribe SIEMPRE en la columna `offers.status`
-//   (valores válidos: 'active' | 'paused' | 'sold').
-// - NO se usa `is_active` en ninguna parte.
-// - Tras el UPDATE se llama a loadAll() para refrescar la lista
-//   desde Supabase (fuente de verdad) y así garantizar persistencia.
-// - Se usa .select() en el UPDATE para detectar fallos silenciosos
-//   por RLS (0 filas afectadas sin error explícito).
-// - Los errores de Supabase se muestran en el banner de error de la UI.
+// Estados de oferta:
+//   - active   : visible al público.
+//   - paused   : oculta al público; visible al vendedor.
+//   - sold     : vendida; suma a base de comisión.
+//   - archived : vendida + archivada por el vendedor. Se sigue
+//                mostrando en este panel, pero NO suma a la base
+//                de comisión (la comisión se calcula SOLO sobre 'sold').
 //
-// Nuevo:
-// - Botón "Marcar vendida" para ofertas en estado 'active' o 'paused'
-//   (escribe offers.status = 'sold').
-// - Botón "Reactivar" para ofertas en estado 'sold'
-//   (escribe offers.status = 'active').
-// - Ambas acciones usan el mismo flujo de persistencia + refresco
-//   que el toggle Pausar/Activar.
+// Acciones:
+// - Pausar / Activar  (active <-> paused).
+// - Marcar vendida / Reactivar  (active|paused -> sold ; sold|archived -> active).
+// - Eliminar.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -85,6 +80,7 @@ export default function Admin() {
         offersActiveRes,
         offersPausedRes,
         offersSoldRes,
+        offersArchivedRes,
         clicksCountRes,
         offersListRes,
         usersListRes
@@ -94,6 +90,7 @@ export default function Admin() {
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'paused'),
         supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'sold'),
+        supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'archived'),
         supabase.from('contact_events').select('id', { count: 'exact', head: true }),
         supabase
           .from('offers')
@@ -114,6 +111,7 @@ export default function Admin() {
         offersActiveRes.error ||
         offersPausedRes.error ||
         offersSoldRes.error ||
+        offersArchivedRes.error ||
         clicksCountRes.error ||
         offersListRes.error ||
         usersListRes.error;
@@ -121,6 +119,7 @@ export default function Admin() {
       if (firstError) throw firstError;
 
       const offersList = offersListRes.data || [];
+      // Comisión: SOLO ofertas con status = 'sold'. Las archivadas NO suman.
       const soldOffers = offersList.filter((o) => o.status === 'sold');
       const soldSum = soldOffers.reduce(
         (acc, o) => acc + (Number(o.price) || 0),
@@ -133,6 +132,7 @@ export default function Admin() {
         offersActive: offersActiveRes.count || 0,
         offersPaused: offersPausedRes.count || 0,
         offersSold: offersSoldRes.count || 0,
+        offersArchived: offersArchivedRes.count || 0,
         whatsappClicks: clicksCountRes.count || 0,
         soldSum,
         commissions: COMMISSION_RATES.map((rate) => ({
@@ -236,13 +236,13 @@ export default function Admin() {
   // Botón Pausar / Activar.
   // Reglas:
   //  - Solo alterna entre 'active' <-> 'paused'.
-  //  - Si la oferta está 'sold' no se permite el toggle (usar "Reactivar").
-  //  - Escribe en la columna `status` de la tabla `offers`.
+  //  - Si la oferta está 'sold' o 'archived' no se permite el toggle
+  //    (usar "Reactivar").
   const handleToggleStatus = async (offer) => {
     if (!offer || togglingId || sellingId) return;
 
-    if (offer.status === 'sold') {
-      setError('La oferta está marcada como vendida. Usa "Reactivar" para volver a publicarla.');
+    if (offer.status === 'sold' || offer.status === 'archived') {
+      setError('La oferta está vendida o archivada. Usa "Reactivar" para volver a publicarla.');
       return;
     }
 
@@ -265,17 +265,15 @@ export default function Admin() {
 
   // Botón Marcar vendida / Reactivar.
   // Reglas:
-  //  - Si la oferta está 'active' o 'paused': pide confirmación y
-  //    escribe offers.status = 'sold'.
-  //  - Si la oferta está 'sold': la reactiva poniendo status = 'active'.
-  //  - Mismo flujo de persistencia + refresco que el toggle.
+  //  - 'active' | 'paused'  -> 'sold' (con confirmación).
+  //  - 'sold' | 'archived'  -> 'active' (reactivar).
   const handleMarkSold = async (offer) => {
     if (!offer || togglingId || sellingId) return;
 
-    const isSold = offer.status === 'sold';
-    const nextStatus = isSold ? 'active' : 'sold';
+    const isSoldOrArchived = offer.status === 'sold' || offer.status === 'archived';
+    const nextStatus = isSoldOrArchived ? 'active' : 'sold';
 
-    if (!isSold) {
+    if (!isSoldOrArchived) {
       const ok = window.confirm(
         `Marcar la oferta "${offer.title}" como VENDIDA? Esto la retira del listado público y la suma al total vendido (base de comisión).`
       );
@@ -289,7 +287,7 @@ export default function Admin() {
       await updateOfferStatus(offer.id, nextStatus);
     } catch (err) {
       setError(
-        (isSold
+        (isSoldOrArchived
           ? 'No fue posible reactivar la oferta: '
           : 'No fue posible marcar la oferta como vendida: ') +
           (err?.message || 'error desconocido')
@@ -319,8 +317,9 @@ export default function Admin() {
         if (!prev) return prev;
         const next = { ...prev };
         next.offersTotal = Math.max(0, next.offersTotal - 1);
-        if (offer.status === 'active') next.offersActive = Math.max(0, next.offersActive - 1);
-        if (offer.status === 'paused') next.offersPaused = Math.max(0, next.offersPaused - 1);
+        if (offer.status === 'active')   next.offersActive   = Math.max(0, next.offersActive - 1);
+        if (offer.status === 'paused')   next.offersPaused   = Math.max(0, next.offersPaused - 1);
+        if (offer.status === 'archived') next.offersArchived = Math.max(0, (next.offersArchived || 0) - 1);
         if (offer.status === 'sold') {
           next.offersSold = Math.max(0, next.offersSold - 1);
           const price = Number(offer.price) || 0;
@@ -383,6 +382,7 @@ export default function Admin() {
                   <option value="active">Activas</option>
                   <option value="paused">Pausadas</option>
                   <option value="sold">Vendidas</option>
+                  <option value="archived">Archivadas</option>
                 </select>
               </div>
             </div>
@@ -431,6 +431,7 @@ function StatsGrid({ stats }) {
     { label: 'Activas', value: formatInt(stats.offersActive), icon: '✅', color: '#16a34a' },
     { label: 'Pausadas', value: formatInt(stats.offersPaused), icon: '⏸️', color: '#f59e0b' },
     { label: 'Vendidas', value: formatInt(stats.offersSold), icon: '💸', color: '#6b7280' },
+    { label: 'Archivadas', value: formatInt(stats.offersArchived || 0), icon: '📦', color: '#475569' },
     { label: 'Clics WhatsApp', value: formatInt(stats.whatsappClicks), icon: '💬', color: '#25D366' }
   ];
 
@@ -457,7 +458,8 @@ function StatsGrid({ stats }) {
             {formatMoney(stats.soldSum)}
           </div>
           <div style={styles.commissionHint}>
-            Calculado sobre ofertas marcadas como vendidas.
+            Calculado solo sobre ofertas con estado <strong>vendida</strong>.
+            Las ofertas <strong>archivadas</strong> no suman a la comisión.
           </div>
         </div>
         <div style={styles.commissionRow}>
@@ -501,7 +503,9 @@ function OffersTable({ offers, onToggle, onMarkSold, onDelete, togglingId, selli
         <tbody>
           {offers.map((o) => {
             const isSold = o.status === 'sold';
+            const isArchived = o.status === 'archived';
             const isPaused = o.status === 'paused';
+            const isSoldOrArchived = isSold || isArchived;
             const isToggling = togglingId === o.id;
             const isSelling = sellingId === o.id;
             const rowBusy = isToggling || isSelling;
@@ -520,7 +524,7 @@ function OffersTable({ offers, onToggle, onMarkSold, onDelete, togglingId, selli
                 <td style={styles.td}>{formatDate(o.created_at)}</td>
                 <td style={styles.td}>
                   <div style={styles.rowBtns}>
-                    {!isSold && (
+                    {!isSoldOrArchived && (
                       <button
                         type="button"
                         className="btn btn-ghost"
@@ -542,14 +546,14 @@ function OffersTable({ offers, onToggle, onMarkSold, onDelete, togglingId, selli
                       onClick={() => onMarkSold(o)}
                       disabled={rowBusy}
                       title={
-                        isSold
+                        isSoldOrArchived
                           ? 'Volver a publicar como activa'
                           : 'Marcar la oferta como vendida'
                       }
                     >
                       {isSelling
                         ? '⏳ Guardando…'
-                        : isSold
+                        : isSoldOrArchived
                           ? '♻️ Reactivar'
                           : '💸 Marcar vendida'}
                     </button>
@@ -615,9 +619,10 @@ function UsersTable({ users }) {
 
 function StatusPill({ status }) {
   const map = {
-    active: { label: 'Activa', bg: '#dcfce7', color: '#166534' },
-    paused: { label: 'Pausada', bg: '#fef3c7', color: '#92400e' },
-    sold: { label: 'Vendida', bg: '#e5e7eb', color: '#374151' }
+    active:   { label: 'Activa',     bg: '#dcfce7', color: '#166534' },
+    paused:   { label: 'Pausada',    bg: '#fef3c7', color: '#92400e' },
+    sold:     { label: 'Vendida',    bg: '#e5e7eb', color: '#374151' },
+    archived: { label: 'Archivada',  bg: '#e2e8f0', color: '#1e293b' }
   };
   const cfg = map[status] || { label: status || '—', bg: '#e5e7eb', color: '#374151' };
   return (
@@ -679,6 +684,9 @@ function mapError(msg) {
   }
   if (m.includes('column') && m.includes('does not exist')) {
     return 'Una columna consultada no existe en el schema. Revisa los nombres reales en public.profiles / public.offers.';
+  }
+  if (m.includes('check constraint') || m.includes('offers_status_check')) {
+    return 'El CHECK de offers.status no acepta el valor enviado. Ejecuta supabase/add-archived-status.sql para permitir "archived".';
   }
   return msg || 'No fue posible cargar el panel.';
 }
