@@ -1,6 +1,13 @@
 // Publish.jsx
 // Crea una nueva oferta en la tabla `offers`, sube imágenes al bucket
 // `offer-images` y registra cada URL en la tabla `offer_images`.
+//
+// Notas sobre imágenes:
+//   - ImageUploader devuelve archivos YA optimizados en el navegador
+//     (redimensionados a 1200x1200 máx, WebP/JPEG q=0.75).
+//   - Aquí simplemente subimos `images` tal cual (versión optimizada,
+//     no la original pesada). Si el navegador no pudo optimizar,
+//     ImageUploader ya hizo fallback al archivo original.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +37,7 @@ export default function Publish() {
     address: '',
     contact_phone: ''
   });
-  const [images, setImages] = useState([]); // File[]
+  const [images, setImages] = useState([]); // File[] (ya optimizados)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
@@ -94,7 +101,8 @@ export default function Publish() {
     const uploadedPaths = []; // para rollback de Storage si algo falla
 
     try {
-      // 1) Insert oferta
+      // 1) Insert oferta (sin image_url todavía; lo seteamos al final
+      //    con la URL pública de la primera imagen).
       const payload = {
         user_id: user.id,
         title: form.title.trim(),
@@ -105,7 +113,7 @@ export default function Publish() {
         city: form.city,
         address: form.address.trim() || null,
         contact_phone: String(form.contact_phone).trim(),
-        contact_name: profile?.name || null,
+        contact_name: profile?.full_name || profile?.name || null,
         status: 'active'
       };
 
@@ -118,27 +126,31 @@ export default function Publish() {
       if (insertErr) throw insertErr;
       createdOfferId = offer.id;
 
-      // 2) Subir imágenes al bucket
+      // 2) Subir imágenes (ya optimizadas) al bucket
       const imageRows = [];
+      let mainImageUrl = null;
+
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         setProgress(`Subiendo imagen ${i + 1} de ${images.length}…`);
 
         const ext = guessExt(file);
         const path = `${user.id}/${createdOfferId}/${Date.now()}-${i}.${ext}`;
+        const contentType = file.type || guessMimeFromExt(ext);
 
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file, {
             cacheControl: '3600',
             upsert: false,
-            contentType: file.type
+            contentType
           });
 
         if (upErr) throw upErr;
         uploadedPaths.push(path);
 
         const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+        if (i === 0) mainImageUrl = pub.publicUrl;
         imageRows.push({
           offer_id: createdOfferId,
           url: pub.publicUrl,
@@ -154,6 +166,15 @@ export default function Publish() {
           .from('offer_images')
           .insert(imageRows);
         if (imgErr) throw imgErr;
+      }
+
+      // 4) Actualizar la oferta con la imagen principal
+      if (mainImageUrl) {
+        const { error: updErr } = await supabase
+          .from('offers')
+          .update({ image_url: mainImageUrl })
+          .eq('id', createdOfferId);
+        if (updErr) throw updErr;
       }
 
       setProgress('¡Listo!');
@@ -327,16 +348,33 @@ export default function Publish() {
   );
 }
 
+// Prioriza el tipo MIME real del File (porque tras optimizar, el blob
+// puede ser image/webp aunque el nombre original fuera .png). Cae al
+// nombre del archivo y, en último caso, a 'jpg'.
 function guessExt(file) {
-  const name = file?.name || '';
-  const fromName = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-  if (fromName) return fromName;
-  const map = {
+  const mimeMap = {
+    'image/webp': 'webp',
     'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp'
+    'image/png': 'png'
   };
-  return map[file?.type] || 'jpg';
+  if (file?.type && mimeMap[file.type]) return mimeMap[file.type];
+
+  const name = file?.name || '';
+  if (name.includes('.')) {
+    const fromName = name.split('.').pop().toLowerCase();
+    if (fromName) return fromName;
+  }
+  return 'jpg';
+}
+
+function guessMimeFromExt(ext) {
+  switch ((ext || '').toLowerCase()) {
+    case 'webp': return 'image/webp';
+    case 'png':  return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    default:     return 'image/jpeg';
+  }
 }
 
 function mapError(msg) {
