@@ -10,6 +10,8 @@ import Publish from './pages/Publish.jsx';
 import MyOffers from './pages/MyOffers.jsx';
 import Admin from './pages/Admin.jsx';
 import OfferDetail from './pages/OfferDetail.jsx';
+import BusinessProfile from './pages/BusinessProfile.jsx';
+import SellerPage from './pages/SellerPage.jsx';
 
 export default function App() {
   return (
@@ -22,6 +24,9 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/offers/:id" element={<OfferDetail />} />
+
+            {/* Página pública de la tienda de un vendedor */}
+            <Route path="/seller/:slug" element={<SellerPage />} />
 
             <Route
               path="/publish"
@@ -36,6 +41,15 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MyOffers />
+                </ProtectedRoute>
+              }
+            />
+            {/* Perfil de negocio del vendedor (editable) */}
+            <Route
+              path="/business-profile"
+              element={
+                <ProtectedRoute>
+                  <BusinessProfile />
                 </ProtectedRoute>
               }
             />
