@@ -2,7 +2,7 @@
 
 Marketplace colombiano de compra y venta entre personas. Permite publicar ofertas con fotos, filtrar por categoría, departamento y ciudad, contactar al vendedor y gestionar publicaciones propias. Pensado para Colombia: validación de teléfono móvil (3XXXXXXXXX), catálogo de departamentos y ciudades reales del país, y experiencia móvil primero.
 
-> **Arquitectura final: 100% serverless con Supabase + PWA. No hay backend Node propio.**
+> **El frontend ya NO depende del backend Node.** Toda la lógica (auth, datos, fotos) corre directo contra Supabase desde el navegador.
 
 ---
 
@@ -24,9 +24,37 @@ Marketplace colombiano de compra y venta entre personas. Permite publicar oferta
 - ❌ SQLite (`better-sqlite3`)
 - ❌ Multer y uploads en disco local
 - ❌ JWT manual / bcrypt manual (lo gestiona Supabase Auth)
+- ❌ Proxy `/api` o `/uploads` en Vite
 - ❌ GitHub Actions / workflows
 
-> 📁 La carpeta `backend/` del repo está **marcada como LEGADO** (ver `backend/README.md`). Se conserva temporalmente porque aún quedan dos pantallas del frontend por migrar a Supabase (`CreateOffer.jsx`, `AdminDashboard.jsx`) que dependen del antiguo `frontend/src/services/api.js`. **No se ejecuta y no forma parte de la app actual.** Se eliminará por completo cuando esas pantallas estén migradas.
+> 📁 La carpeta `backend/` del repo está **marcada como LEGADO** (ver `backend/README.md`). No se ejecuta, no forma parte de la app y se eliminará en un bloque posterior.
+
+---
+
+## 🧭 Estado de la migración a Supabase
+
+El frontend ya **no llama a ningún endpoint HTTP propio**. Verificaciones:
+
+| Comprobación | Estado |
+|---|---|
+| `axios` en `frontend/` | ✅ No existe |
+| `fetch('/api/...')` en código activo | ✅ No existe |
+| `VITE_API_URL` o similar | ✅ No existe |
+| Proxy a `localhost:4000` en `vite.config.js` | ✅ Eliminado |
+| `services/api.js` | ✅ Reducido a **stub legado** que lanza error claro si se invoca |
+| `pages/CreateOffer.jsx` | ✅ Convertido en **stub legado** (no montado en `App.jsx`; la ruta real es `Publish.jsx`) |
+| `pages/AdminDashboard.jsx` | ✅ Convertido en **stub legado** (no montado en `App.jsx`; la ruta real es `Admin.jsx`) |
+| Llamadas a Supabase desde el navegador | ✅ Sí (`@supabase/supabase-js`) |
+
+Las pantallas reales que el Router monta hoy son:
+
+- `/` → `Home.jsx`
+- `/login` → `Login.jsx`
+- `/register` → `Register.jsx`
+- `/offers/:id` → `OfferDetail.jsx`
+- `/publish` → `Publish.jsx` *(protegida)*
+- `/my-offers` → `MyOffers.jsx` *(protegida)*
+- `/admin` → `Admin.jsx` *(protegida, solo admin)*
 
 ---
 
@@ -40,16 +68,16 @@ Marketplace colombiano de compra y venta entre personas. Permite publicar oferta
 4. En **Project Settings → API** copia:
    - `Project URL` → va en `VITE_SUPABASE_URL`
    - `anon public` key → va en `VITE_SUPABASE_ANON_KEY`
-5. En **Authentication → Providers** deja habilitado **Email** (viene por defecto). Desactiva "Confirm email" si quieres pruebas rápidas (recomendado activarlo en producción).
+5. En **Authentication → Providers** deja habilitado **Email**. Desactiva "Confirm email" si quieres pruebas rápidas (recomendado activarlo en producción).
 
 ### 2. Ejecutar el SQL en Supabase
 
-Ve a **SQL Editor** en el panel de Supabase y ejecuta el bloque completo de [Esquema base](#-sql-para-crear-las-tablas) y luego el bloque de [Políticas RLS](#-políticas-rls-básicas).
+Ve a **SQL Editor** y ejecuta el bloque completo de [Esquema base](#-sql-para-crear-las-tablas) y luego el de [Políticas RLS](#-políticas-rls-básicas).
 
 ### 3. Crear el bucket `offer-images`
 
 1. En **Storage** crea un bucket llamado `offer-images` y márcalo como **Public**.
-2. En **Storage → Policies** del bucket aplica las reglas descritas más abajo en [Política mínima del bucket `offer-images`](#política-mínima-del-bucket-offer-images).
+2. En **Storage → Policies** del bucket aplica las reglas descritas en [Política mínima del bucket](#política-mínima-del-bucket-offer-images).
 
 ### 4. Configurar variables de entorno
 
@@ -77,7 +105,7 @@ npm run dev
 
 Abre http://localhost:5173
 
-> En desarrollo el service worker **no se registra a propósito** para no interferir con el HMR de Vite.
+> En desarrollo el service worker **no se registra** para no interferir con el HMR de Vite. Vite tampoco hace proxy a ningún backend local: ya no se necesita.
 
 ### 7. Build de producción
 
@@ -267,7 +295,7 @@ frontend/
 ├── manifest.json
 ├── sw.js
 ├── package.json
-├── vite.config.js
+├── vite.config.js          ← sin proxy, sin localhost
 └── src/
     ├── main.jsx
     ├── App.jsx
@@ -276,8 +304,18 @@ frontend/
     ├── data/
     ├── components/
     ├── pages/
+    │   ├── Home.jsx
+    │   ├── Login.jsx
+    │   ├── Register.jsx
+    │   ├── Publish.jsx          ← publicar oferta (Supabase)
+    │   ├── MyOffers.jsx         ← mis publicaciones (Supabase)
+    │   ├── Admin.jsx            ← panel admin (Supabase + RLS)
+    │   ├── OfferDetail.jsx
+    │   ├── CreateOffer.jsx      ← stub legado, no se monta
+    │   └── AdminDashboard.jsx   ← stub legado, no se monta
     ├── context/
     ├── services/
+    │   └── api.js               ← stub legado (no llama a ningún backend)
     ├── styles/
     └── utils/
 ```
@@ -314,8 +352,8 @@ DevTools → **Application → Manifest / Service Workers** para validar.
 
 ---
 
-## ⚠️ Estado del backend legado
+## ⚠️ Notas finales
 
-La carpeta `backend/` del repo es **legado** y no se ejecuta. Ver `backend/README.md` para el detalle. Toda la lógica nueva debe escribirse contra Supabase usando `frontend/src/lib/supabaseClient.js`.
-
-No hay GitHub Actions, ni workflows, ni despliegue automático configurado en este repositorio.
+- La carpeta `backend/` es **legado** y no se ejecuta. Ver `backend/README.md`.
+- Toda la lógica nueva debe escribirse contra Supabase usando `frontend/src/lib/supabaseClient.js`.
+- No hay GitHub Actions, ni workflows, ni despliegue automático configurado en este repositorio.
