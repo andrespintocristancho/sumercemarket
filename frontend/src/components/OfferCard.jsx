@@ -4,7 +4,7 @@
 
 import { Link } from 'react-router-dom';
 import { buildWhatsAppLink, formatPhone } from '../data/colombia.js';
-import { supabase } from '../services/supabase.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 export default function OfferCard({
   offer,
@@ -38,8 +38,7 @@ export default function OfferCard({
       await supabase.from('contact_events').insert({
         offer_id: offer.id,
         user_id: userId,
-        channel: 'whatsapp',
-        source: 'offer_card'
+        channel: 'whatsapp'
       });
     } catch (err) {
       // Silenciar: no impedir el contacto si la métrica falla
