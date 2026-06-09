@@ -4,15 +4,15 @@ import { supabase } from "../lib/supabaseClient";
 
 /**
  * SellerPage
- * Mini web pública premium del vendedor:
- *  - Hero con portada, logo y CTA
- *  - Sobre el negocio
- *  - Servicios / Lo que ofrecemos (cards según business_template)
- *  - Horario
- *  - Ubicación
- *  - Ofertas destacadas
- *  - Todas las ofertas activas
- *  - CTA final a WhatsApp
+ * Mini web pública del vendedor.
+ *
+ * Orden de secciones (Bloque 3.1):
+ *   1. Hero (más compacto)
+ *   2. Sobre el negocio (con horario / ubicación / whatsapp)
+ *   3. Servicios
+ *   4. Ofertas destacadas (primeras 3)
+ *   5. Catálogo (excluye las 3 destacadas, sin duplicar)
+ *   6. CTA WhatsApp
  *
  * Columnas usadas en `profiles`:
  *   business_name, business_slug, business_description,
@@ -22,9 +22,6 @@ import { supabase } from "../lib/supabaseClient";
  *   business_whatsapp,
  *   business_logo_url, business_cover_url,
  *   business_services
- *
- * Color principal: business_primary_color
- * Animaciones: fade, slide y hover.
  */
 
 const TEMPLATE_SERVICES = {
@@ -131,8 +128,20 @@ export default function SellerPage() {
   }, [slug]);
 
   const primary = profile?.business_primary_color || "#2563eb";
-  const services = useMemo(() => TEMPLATE_SERVICES[profile?.business_template] || TEMPLATE_SERVICES.store, [profile]);
+  const services = useMemo(
+    () => TEMPLATE_SERVICES[profile?.business_template] || TEMPLATE_SERVICES.store,
+    [profile]
+  );
+
+  /**
+   * Reglas anti-duplicado (Bloque 3.1):
+   *  - Destacadas: primeras 3 ofertas (si hay menos, solo las que hay).
+   *  - Catálogo: el resto (offers.slice(3)). Si hay <= 3 ofertas, el catálogo queda vacío
+   *    y NO se vuelve a mostrar lo mismo que en destacadas.
+   */
   const featured = useMemo(() => offers.slice(0, 3), [offers]);
+  const catalog = useMemo(() => (offers.length > 3 ? offers.slice(3) : []), [offers]);
+
   const servicesList = useMemo(() => {
     if (!profile?.business_services) return [];
     return profile.business_services.split(",").map((s) => s.trim()).filter(Boolean);
@@ -141,7 +150,9 @@ export default function SellerPage() {
 
   function waLink(text = "") {
     if (!profile?.business_whatsapp) return null;
-    const msg = encodeURIComponent(text || `Hola ${profile.business_name}, vi tu sitio y me interesa más información.`);
+    const msg = encodeURIComponent(
+      text || `Hola ${profile.business_name}, vi tu sitio y me interesa más información.`
+    );
     return `https://wa.me/${profile.business_whatsapp}?text=${msg}`;
   }
 
@@ -170,7 +181,7 @@ export default function SellerPage() {
     <div className="sp-wrap">
       <style>{styles(primary)}</style>
 
-      {/* HERO PREMIUM */}
+      {/* 1. HERO (más compacto) */}
       <header
         className="sp-hero"
         style={{
@@ -183,24 +194,26 @@ export default function SellerPage() {
               ? <img src={profile.business_logo_url} alt={profile.business_name} />
               : <span>🏪</span>}
           </div>
-          <h1 className="sp-fade-up">{profile.business_name}</h1>
-          {(profile.business_headline || profile.business_description) && (
-            <p className="sp-hero-desc sp-fade-up sp-delay-1">
-              {profile.business_headline || profile.business_description}
-            </p>
-          )}
-          <div className="sp-hero-cta sp-fade-up sp-delay-2">
-            {waLink() && (
-              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-whats">
-                📱 Escríbenos por WhatsApp
-              </a>
+          <div className="sp-hero-text">
+            <h1 className="sp-fade-up">{profile.business_name}</h1>
+            {(profile.business_headline || profile.business_description) && (
+              <p className="sp-hero-desc sp-fade-up sp-delay-1">
+                {profile.business_headline || profile.business_description}
+              </p>
             )}
-            <a href="#ofertas" className="sp-btn sp-btn-outline-light">Ver ofertas</a>
+            <div className="sp-hero-cta sp-fade-up sp-delay-2">
+              {waLink() && (
+                <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-whats">
+                  📱 WhatsApp
+                </a>
+              )}
+              <a href="#ofertas" className="sp-btn sp-btn-outline-light">Ver ofertas</a>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* SOBRE EL NEGOCIO */}
+      {/* 2. SOBRE EL NEGOCIO (+ horario / ubicación / whatsapp) */}
       <section className="sp-section sp-slide-up">
         <div className="sp-section-head">
           <h2>Sobre nosotros</h2>
@@ -211,40 +224,8 @@ export default function SellerPage() {
             || profile.business_description
             || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
         </p>
-      </section>
 
-      {/* SERVICIOS */}
-      <section className="sp-section sp-slide-up">
-        <div className="sp-section-head">
-          <h2>Lo que ofrecemos</h2>
-          <span className="sp-divider" />
-        </div>
-        <div className="sp-cards">
-          {services.map((s, i) => (
-            <article key={i} className="sp-card sp-card-service" style={{ animationDelay: `${i * 80}ms` }}>
-              <div className="sp-card-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>
-                {s.icon}
-              </div>
-              <h3>{s.title}</h3>
-              <p>{s.desc}</p>
-            </article>
-          ))}
-        </div>
-
-        {servicesList.length > 0 && (
-          <div className="sp-tags">
-            {servicesList.map((t, i) => (
-              <span key={i} className="sp-tag" style={{ borderColor: hexToRgba(primary, .35), color: primary }}>
-                ✓ {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* HORARIO Y UBICACIÓN */}
-      {(profile.business_schedule || fullAddress || profile.business_whatsapp) && (
-        <section className="sp-section sp-slide-up">
+        {(profile.business_schedule || fullAddress || profile.business_whatsapp) && (
           <div className="sp-info-grid">
             {profile.business_schedule && (
               <div className="sp-info-card">
@@ -283,10 +264,39 @@ export default function SellerPage() {
               </div>
             )}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      {/* OFERTAS DESTACADAS */}
+      {/* 3. SERVICIOS */}
+      <section className="sp-section sp-slide-up">
+        <div className="sp-section-head">
+          <h2>Lo que ofrecemos</h2>
+          <span className="sp-divider" />
+        </div>
+        <div className="sp-cards">
+          {services.map((s, i) => (
+            <article key={i} className="sp-card sp-card-service" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="sp-card-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>
+                {s.icon}
+              </div>
+              <h3>{s.title}</h3>
+              <p>{s.desc}</p>
+            </article>
+          ))}
+        </div>
+
+        {servicesList.length > 0 && (
+          <div className="sp-tags">
+            {servicesList.map((t, i) => (
+              <span key={i} className="sp-tag" style={{ borderColor: hexToRgba(primary, .35), color: primary }}>
+                ✓ {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 4. OFERTAS DESTACADAS (primeras 3) */}
       {featured.length > 0 && (
         <section className="sp-section sp-slide-up">
           <div className="sp-section-head">
@@ -301,10 +311,10 @@ export default function SellerPage() {
         </section>
       )}
 
-      {/* TODAS LAS OFERTAS */}
+      {/* 5. CATÁLOGO (resto, sin duplicar destacadas) */}
       <section id="ofertas" className="sp-section sp-slide-up">
         <div className="sp-section-head">
-          <h2>Todas nuestras ofertas</h2>
+          <h2>Catálogo</h2>
           <span className="sp-divider" />
         </div>
         {offers.length === 0 ? (
@@ -318,17 +328,31 @@ export default function SellerPage() {
               </a>
             )}
           </div>
+        ) : catalog.length === 0 ? (
+          <div className="sp-empty">
+            <div className="sp-empty-icon">✨</div>
+            <h3>Ya viste nuestras ofertas destacadas</h3>
+            <p>Estas son todas las ofertas activas por ahora. Pronto habrá más novedades.</p>
+            {waLink() && (
+              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary">
+                Contactar por WhatsApp
+              </a>
+            )}
+          </div>
         ) : (
           <div className="sp-cards">
-            {offers.map((o, i) => (
+            {catalog.map((o, i) => (
               <OfferCard key={o.id} offer={o} primary={primary} delay={i * 60} waLink={waLink} />
             ))}
           </div>
         )}
       </section>
 
-      {/* CTA FINAL */}
-      <section className="sp-cta-final sp-slide-up" style={{ background: `linear-gradient(135deg, ${primary}, ${hexToRgba(primary, .75)})` }}>
+      {/* 6. CTA WHATSAPP */}
+      <section
+        className="sp-cta-final sp-slide-up"
+        style={{ background: `linear-gradient(135deg, ${primary}, ${hexToRgba(primary, .75)})` }}
+      >
         <h2>¿Te interesa algo? Hablemos</h2>
         <p>Estamos listos para atenderte por WhatsApp.</p>
         {waLink() ? (
@@ -395,14 +419,15 @@ const styles = (primary) => `
 .sp-spinner{width:40px;height:40px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:${primary};animation:sp-spin 1s linear infinite}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 
-/* HERO */
-.sp-hero{position:relative;color:#fff;background-size:cover;background-position:center;padding:80px 20px 90px;text-align:center}
-.sp-hero-inner{max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:18px}
-.sp-hero-logo{width:120px;height:120px;border-radius:50%;background:#fff;border:5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:48px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:sp-pop .6s ease-out both}
+/* HERO COMPACTO */
+.sp-hero{position:relative;color:#fff;background-size:cover;background-position:center;padding:48px 24px 56px;text-align:left}
+.sp-hero-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.sp-hero-logo{width:96px;height:96px;border-radius:50%;background:#fff;border:4px solid #fff;display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.22);animation:sp-pop .6s ease-out both;flex-shrink:0}
 .sp-hero-logo img{width:100%;height:100%;object-fit:cover}
-.sp-hero h1{font-size:42px;margin:0;letter-spacing:-.02em;text-shadow:0 4px 20px rgba(0,0,0,.25)}
-.sp-hero-desc{font-size:18px;max-width:680px;opacity:.95;margin:0;line-height:1.5}
-.sp-hero-cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:10px}
+.sp-hero-text{flex:1;min-width:260px;display:flex;flex-direction:column;gap:10px}
+.sp-hero h1{font-size:36px;margin:0;letter-spacing:-.02em;text-shadow:0 4px 18px rgba(0,0,0,.25);line-height:1.15}
+.sp-hero-desc{font-size:16px;max-width:760px;opacity:.95;margin:0;line-height:1.5}
+.sp-hero-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
 @keyframes sp-pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
 
 /* Animaciones */
@@ -414,7 +439,7 @@ const styles = (primary) => `
 @keyframes sp-slide{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
 
 /* Botones */
-.sp-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;border:none;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .2s,box-shadow .25s,opacity .2s}
+.sp-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;border:none;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .2s,box-shadow .25s,opacity .2s}
 .sp-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
 .sp-btn-primary{background:${primary};color:#fff}
 .sp-btn-whats{background:#25d366;color:#fff}
@@ -422,15 +447,15 @@ const styles = (primary) => `
 .sp-btn-lg{padding:16px 32px;font-size:17px}
 .sp-btn-block{width:100%;justify-content:center;margin-top:12px}
 
-/* Secciones */
-.sp-section{max-width:1080px;margin:0 auto;padding:60px 20px}
-.sp-section-head{text-align:center;margin-bottom:34px}
+/* Secciones — ancho ampliado */
+.sp-section{max-width:1280px;margin:0 auto;padding:56px 32px}
+.sp-section-head{text-align:center;margin-bottom:32px}
 .sp-section-head h2{font-size:30px;margin:0;letter-spacing:-.01em}
 .sp-divider{display:block;width:60px;height:4px;border-radius:99px;background:${primary};margin:12px auto 0}
-.sp-about{max-width:760px;margin:0 auto;text-align:center;font-size:17px;line-height:1.7;color:#475569}
+.sp-about{max-width:860px;margin:0 auto;text-align:center;font-size:17px;line-height:1.7;color:#475569}
 
 /* Cards */
-.sp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
+.sp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px}
 .sp-card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.05);transition:transform .25s,box-shadow .25s;animation:sp-fade-up .6s ease-out both;overflow:hidden}
 .sp-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(15,23,42,.12)}
 .sp-card-service{padding:24px;text-align:center}
@@ -444,8 +469,8 @@ const styles = (primary) => `
 .sp-tag{padding:8px 14px;border-radius:99px;border:1.5px solid;font-size:14px;font-weight:600;background:#fff;transition:transform .2s}
 .sp-tag:hover{transform:translateY(-2px)}
 
-/* Info grid */
-.sp-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+/* Info grid (dentro de Sobre nosotros) */
+.sp-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:32px}
 .sp-info-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;text-align:center;transition:transform .25s,box-shadow .25s}
 .sp-info-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
 .sp-info-icon{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 12px}
@@ -474,7 +499,7 @@ const styles = (primary) => `
 .sp-empty p{margin:0 0 18px;color:#64748b}
 
 /* CTA final */
-.sp-cta-final{max-width:1080px;margin:20px auto 40px;border-radius:24px;padding:54px 24px;text-align:center;color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.15)}
+.sp-cta-final{max-width:1280px;margin:20px auto 40px;border-radius:24px;padding:54px 24px;text-align:center;color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.15)}
 .sp-cta-final h2{margin:0 0 10px;font-size:30px}
 .sp-cta-final p{margin:0 0 22px;opacity:.95;font-size:17px}
 .sp-muted{opacity:.85;font-size:14px}
@@ -483,14 +508,20 @@ const styles = (primary) => `
 .sp-footer{text-align:center;padding:28px 20px;color:#64748b;font-size:13px;border-top:1px solid #e5e7eb;background:#fff}
 
 /* Responsive */
+@media (max-width:960px){
+  .sp-section{padding:48px 22px}
+}
 @media (max-width:720px){
-  .sp-hero{padding:60px 18px 70px}
-  .sp-hero h1{font-size:30px}
-  .sp-hero-desc{font-size:15px}
-  .sp-hero-logo{width:92px;height:92px;font-size:38px;border-width:4px}
-  .sp-section{padding:46px 16px}
-  .sp-section-head h2{font-size:24px}
-  .sp-cta-final{padding:40px 18px;margin:16px;border-radius:18px}
-  .sp-cta-final h2{font-size:22px}
+  .sp-hero{padding:38px 18px 46px;text-align:center}
+  .sp-hero-inner{justify-content:center;text-align:center;gap:16px}
+  .sp-hero-text{align-items:center}
+  .sp-hero h1{font-size:26px}
+  .sp-hero-desc{font-size:14.5px}
+  .sp-hero-logo{width:80px;height:80px;font-size:34px;border-width:3px}
+  .sp-hero-cta{justify-content:center}
+  .sp-section{padding:40px 16px}
+  .sp-section-head h2{font-size:22px}
+  .sp-cta-final{padding:36px 18px;margin:16px;border-radius:18px}
+  .sp-cta-final h2{font-size:20px}
 }
 `;
