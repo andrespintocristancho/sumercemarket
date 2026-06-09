@@ -297,11 +297,32 @@ export default function SellerPage() {
           <h2>Sobre nosotros</h2>
           <span className="sp-divider" />
         </div>
-        <p className="sp-about">
-          {profile.business_about
-            || profile.business_description
-            || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
-        </p>
+
+        <div
+          className="sp-about-card"
+          style={{
+            background: `linear-gradient(180deg, #ffffff 0%, ${hexToRgba(primary, .04)} 100%)`,
+            borderColor: hexToRgba(primary, .18),
+          }}
+        >
+          <span
+            className="sp-about-accent"
+            style={{ background: `linear-gradient(180deg, ${primary}, ${hexToRgba(primary, .55)})` }}
+            aria-hidden="true"
+          />
+          <div
+            className="sp-about-quote"
+            style={{ background: hexToRgba(primary, .12), color: primary }}
+            aria-hidden="true"
+          >
+            “
+          </div>
+          <p className="sp-about">
+            {profile.business_about
+              || profile.business_description
+              || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
+          </p>
+        </div>
 
         {(profile.business_schedule || fullAddress || profile.business_whatsapp) && (
           <div className="sp-info-grid">
@@ -609,6 +630,34 @@ const styles = (primary) => `
 .sp-divider{display:block;width:60px;height:4px;border-radius:99px;background:${primary};margin:12px auto 0}
 .sp-about{max-width:860px;margin:0 auto;text-align:center;font-size:17px;line-height:1.7;color:#475569}
 
+/* Tarjeta "Sobre nosotros" — mejora visual mínima */
+.sp-about-card{
+  position:relative;
+  max-width:900px;
+  margin:0 auto;
+  padding:32px 32px 32px 44px;
+  border:1px solid #e5e7eb;
+  border-radius:20px;
+  box-shadow:0 8px 28px rgba(15,23,42,.06);
+  overflow:hidden;
+}
+.sp-about-accent{
+  position:absolute;
+  left:0;top:0;bottom:0;
+  width:6px;
+  border-radius:20px 0 0 20px;
+}
+.sp-about-quote{
+  width:44px;height:44px;
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:34px;
+  font-weight:800;
+  line-height:1;
+  margin:0 auto 14px;
+  font-family:Georgia,serif;
+}
+
 /* Cards */
 .sp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px}
 .sp-card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.05);transition:transform .25s,box-shadow .25s;animation:sp-fade-up .6s ease-out both;overflow:hidden}
@@ -680,11 +729,12 @@ const styles = (primary) => `
   .sp-btn{padding:10px 16px;font-size:14px}
   .sp-section{padding:40px 16px}
   .sp-section-head h2{font-size:22px}
+  .sp-about-card{padding:24px 20px 24px 28px;border-radius:16px}
   .sp-cta-final{padding:36px 18px;margin:16px;border-radius:18px}
   .sp-cta-final h2{font-size:20px}
 }
 @media (max-width:420px){
-  .sp-hero-cta{flex-direction:column;width:100%;max-width:300px;margin-left:auto;margin-right:auto}
+  .sp-hero-cta{flex-direction:column;width:100%;max-width:300px;margin:0 auto}
   .sp-hero-cta .sp-btn{width:100%;justify-content:center}
 }
 `;
