@@ -1,414 +1,109 @@
-# Súmerce Market
+# SumercéMarket
 
-> Plataforma web para ofertas y pedidos de productos locales colombianos, con foco en municipios de Boyacá. PWA construida sobre **React + Vite** y **Supabase** como backend gestionado.
+Marketplace local que permite a cada vendedor tener su propia **mini página web profesional** dentro de la plataforma, conectada a sus ofertas activas.
 
-## Arquitectura
+## ✨ Página del vendedor (`/seller/:slug`) — Bloque 3 Premium
 
-| Capa | Tecnología |
-|------|------------|
-| Frontend / UI | **React 18 + Vite** |
-| App instalable | **PWA** (service worker + manifest) |
-| Autenticación | **Supabase Auth** |
-| Base de datos | **Supabase Postgres** |
-| Almacenamiento de fotos de ofertas | **Supabase Storage** (bucket `offer-images`) |
-| Almacenamiento de logo/portada del negocio | **Supabase Storage** (bucket `business-assets`) |
-| Backend Node | ❌ No existe. Toda la lógica de datos vive en Supabase. |
-| SQLite | ❌ No se usa. |
+`/seller/:slug` ya no es una ficha básica: es una **landing tipo Wix** que cada vendedor puede presentar como "su página web".
 
-> Toda la persistencia (usuarios, ofertas, imágenes, contactos) está en Supabase. El frontend habla directamente con Supabase usando `@supabase/supabase-js`, protegido por **Row Level Security (RLS)**.
+### Qué incluye
 
-## Estructura del repositorio
+- **Hero premium** con portada de fondo, overlay degradado, logo circular, nombre grande, frase principal y ubicación.
+- **Botones de acción**: WhatsApp, Copiar link y Compartir tienda (usa `navigator.share` cuando está disponible).
+- **Secciones**:
+  - Sobre el negocio
+  - Horario
+  - Ubicación (con link a Google Maps)
+  - Ofertas destacadas (máx. 3)
+  - Todas las ofertas
+- **Color principal** del negocio aplicado a títulos, precios y botones (`business_primary_color`).
+- **Estado vacío bonito** cuando no hay ofertas activas.
+- **Diseño responsive** optimizado para celular, tablet y escritorio.
 
-```
-sumercemarket/
-├── frontend/                # App React + Vite (PWA)
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   └── src/
-│       ├── main.jsx
-│       ├── App.jsx
-│       ├── App.css
-│       ├── components/
-│       ├── context/
-│       └── pages/
-├── supabase/
-│   ├── schema.sql                # Esquema SQL completo + RLS
-│   ├── business-profile.sql      # Columnas extra de "negocio" en profiles
-│   └── business-templates.sql    # Columnas de plantilla pública del vendedor
-├── .gitignore
-└── README.md
-```
+### Campos leídos de `profiles`
 
-## Variables de entorno
+`business_template`, `business_headline`, `business_about`, `business_schedule`,
+`business_primary_color`, `business_name`, `business_logo_url`, `business_cover_url`,
+`business_whatsapp`, `business_address`, `business_department`, `business_city`.
 
-Crea un archivo `frontend/.env` (NO se commitea) con tus credenciales públicas de Supabase:
+### Ofertas
 
-```
-VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co
-VITE_SUPABASE_ANON_KEY=TU_ANON_PUBLIC_KEY
-```
+Se consulta la tabla `offers` filtrando por `seller_id = profile.id` y `status = 'active'`, ordenadas por fecha de creación. Las primeras 3 se muestran como **destacadas**, el resto en la sección **Todas las ofertas**.
 
-Estas dos claves son **públicas** (anon key); la seguridad real la garantizan las políticas RLS definidas en `supabase/schema.sql`. Nunca pongas la `service_role` key en el frontend.
+## 🎨 Plantillas visuales por rubro (`business_template`)
 
-## Configurar Supabase paso a paso
+Cada plantilla cambia tipografía, fondo, gradiente del hero, radios y color base sugerido:
 
-### 1. Crear el proyecto
+| Plantilla   | Estilo                              | Pensado para           |
+|-------------|-------------------------------------|------------------------|
+| `store`     | Limpio, azul, neutro                | Tiendas generales      |
+| `fashion`   | Editorial, serif, rosa              | Moda y ropa            |
+| `beauty`    | Suave, magenta, redondeado          | Belleza y cosmética    |
+| `health`    | Sobrio, celeste, profesional        | Salud y bienestar      |
+| `gym`       | Oscuro, naranja, energético         | Fitness y gimnasios    |
+| `vehicles`  | Premium, gris oscuro, Montserrat    | Vehículos              |
+| `food`      | Cálido, rojo, redondeado            | Comida y restaurantes  |
+| `services`  | Confiable, verde azulado            | Servicios              |
 
-1. Entra a <https://app.supabase.com> y crea una cuenta si no tienes.
-2. Pulsa **New project**.
-3. Define:
-   - **Name:** `sumerce-market` (o el que prefieras).
-   - **Database password:** guárdala bien.
-   - **Region:** la más cercana a tus usuarios (ej. `South America (São Paulo)`).
-4. Espera a que el proyecto termine de provisionarse.
+Si `business_template` está vacío o no coincide, se usa `store` como predeterminado.
 
-### 2. Obtener las claves para el frontend
+## 🧪 Cómo probar `/seller/:slug`
 
-1. En el dashboard del proyecto, ve a **Project Settings → API**.
-2. Copia:
-   - `Project URL` → va en `VITE_SUPABASE_URL`.
-   - `anon` `public` key → va en `VITE_SUPABASE_ANON_KEY`.
-3. Pégalas en tu `frontend/.env`.
+1. Inicia el frontend:
 
-### 3. Crear las tablas (SQL Editor)
-
-> Las tablas se crean ejecutando los scripts SQL incluidos en este repo.
-
-1. En el dashboard de Supabase, abre **SQL Editor** → **New query**.
-2. Abre el archivo [`supabase/schema.sql`](./supabase/schema.sql) de este repositorio.
-3. Copia **todo** su contenido y pégalo en el SQL Editor.
-4. Pulsa **Run**.
-5. Verifica en **Table Editor** que se crearon las tablas:
-   - `profiles`
-   - `offers`
-   - `offer_images`
-   - `contact_events`
-6. Abre [`supabase/business-profile.sql`](./supabase/business-profile.sql), pégalo en otro **New query** y ejecútalo. Añadirá a `profiles` las columnas de negocio (`business_name`, `business_slug`, etc.). Es idempotente.
-7. Abre [`supabase/business-templates.sql`](./supabase/business-templates.sql), pégalo en otro **New query** y ejecútalo. Añadirá a `profiles` las columnas de **plantilla pública del vendedor** (`business_template`, `business_headline`, `business_about`, `business_schedule`, `business_primary_color`) y el CHECK constraint que valida los valores permitidos. También es idempotente.
-
-El mismo script habilita **RLS** en todas las tablas y crea las políticas básicas (ver sección "Modelo de datos" más abajo).
-
-#### 3.1. Ejecutar `business-templates.sql`
-
-Este script añade soporte para **plantillas profesionales** en la página pública del vendedor (`/seller/:slug`). No toca login, ni RLS, ni otras tablas.
-
-1. En Supabase, ve a **SQL Editor → New query**.
-2. Abre [`supabase/business-templates.sql`](./supabase/business-templates.sql) en tu editor.
-3. Copia **todo** su contenido y pégalo en el SQL Editor.
-4. Pulsa **Run**. Debes ver `Success. No rows returned`.
-5. Verifica las columnas nuevas en `profiles` (ver más abajo "Verificar las columnas nuevas de plantilla").
-
-Columnas que añade a `profiles`:
-
-| Columna | Tipo | Default | Notas |
-|---|---|---|---|
-| `business_template` | `text` | `'store'` | Plantilla visual. Validada por CHECK. |
-| `business_headline` | `text` | — | Titular corto del negocio. |
-| `business_about` | `text` | — | Texto largo "sobre el negocio". |
-| `business_schedule` | `text` | — | Horario de atención (texto libre). |
-| `business_primary_color` | `text` | `'#2563eb'` | Color primario (HEX) de la plantilla. |
-
-Valores permitidos para `business_template` (CHECK constraint `profiles_business_template_check`):
-
-- `store`
-- `fashion`
-- `beauty`
-- `health`
-- `gym`
-- `vehicles`
-- `food`
-- `services`
-
-#### 3.2. Verificar las columnas nuevas de plantilla
-
-En **SQL Editor → New query**, ejecuta:
-
-```sql
-select column_name, data_type, column_default
-  from information_schema.columns
- where table_schema = 'public'
-   and table_name   = 'profiles'
-   and column_name in (
-     'business_template',
-     'business_headline',
-     'business_about',
-     'business_schedule',
-     'business_primary_color'
-   )
- order by column_name;
-```
-
-Deberías ver las 5 filas. `business_template` debe tener `column_default = 'store'::text` y `business_primary_color` debe tener `column_default = '#2563eb'::text`.
-
-Para comprobar el CHECK:
-
-```sql
-select conname, pg_get_constraintdef(oid)
-  from pg_constraint
- where conname = 'profiles_business_template_check';
-```
-
-Debe devolver una fila con el `CHECK` listando los 8 valores permitidos.
-
-También puedes verificarlo desde la UI en **Table Editor → `profiles` → Columns**: ahí aparecerán las 5 nuevas columnas con sus tipos y valores por defecto.
-
-### 4. Configurar autenticación
-
-1. En Supabase, ve a **Authentication → Providers**.
-2. Habilita **Email** (mínimo). Si quieres login social (Google, etc.), actívalos también.
-3. En **Authentication → URL Configuration** añade tu URL de desarrollo (`http://localhost:5173`) y, cuando despliegues, la URL de producción.
-
-### 5. Crear los buckets de Storage
-
-#### 5.1. Bucket `offer-images` (fotos de ofertas)
-
-1. Ve a **Storage** en el menú lateral.
-2. Pulsa **New bucket**.
-3. Configura:
-   - **Name:** `offer-images` (exacto, sin mayúsculas).
-   - **Public bucket:** **ON** (para servir las imágenes vía URL pública).
-4. Crea el bucket.
-5. (Opcional) En **Storage → Policies**, ajusta quién puede subir/borrar archivos. Recomendado:
-   - **SELECT:** público.
-   - **INSERT / UPDATE / DELETE:** solo usuarios autenticados.
-
-#### 5.2. Bucket `business-assets` (logo y portada del negocio)
-
-1. En **Storage**, pulsa **New bucket**.
-2. Configura:
-   - **Name:** `business-assets`.
-   - **Public bucket:** **ON**.
-3. Crea el bucket.
-4. Recomendado en **Storage → Policies** (sobre `storage.objects`, bucket `business-assets`):
-   - **SELECT:** público.
-   - **INSERT / UPDATE / DELETE:** solo el dueño de la ruta, p. ej. validando que el primer segmento del path coincida con `auth.uid()` (las rutas son `{userId}/cover.<ext>` y `{userId}/logo.<ext>`).
-
-### 6. Probar la conexión desde el frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Abre `http://localhost:5173/`. Si las variables de entorno son correctas y las tablas están creadas, podrás registrarte, iniciar sesión y consultar/crear ofertas.
-
-## Optimización de imágenes (en el navegador)
-
-Para ahorrar espacio en Supabase Storage y acelerar la carga de la app, **las fotos se optimizan en el navegador antes de subirse**.
-
-### Imágenes de ofertas
-
-Esta lógica vive en `frontend/src/components/ImageUploader.jsx` (función `compressImage`) y se aplica de forma transparente al usuario:
-
-- **Formatos aceptados de entrada:** JPG, JPEG, PNG y WebP.
-- **Validación previa:** tipo MIME y tamaño máximo (5 MB por archivo).
-- **Redimensionado:** ancho/alto máximo **1200×1200 px**, manteniendo proporción.
-- **Recompresión** con `canvas.toBlob`:
-  - **Formato preferido:** `image/webp` con `quality = 0.75`.
-  - **Fallback:** `image/jpeg` con `quality = 0.75` si el navegador no soporta WebP.
-- **Si la versión "optimizada" pesara más que la original**, se devuelve la original (mejor para fotos ya pequeñas).
-- **Fallback de seguridad:** si por cualquier razón el proceso de optimización falla, se usa el archivo original. **La publicación nunca se rompe por la compresión.**
-- **Límite de fotos por oferta:** **5**.
-- **Preview**: el `ImageUploader` muestra la previsualización y el tamaño en KB/MB de la **versión optimizada**, no de la original.
-
-En `Publish.jsx`, esa lista de archivos optimizados es la que se sube al bucket `offer-images`. Por cada imagen se guarda un registro en `offer_images` con `offer_id`, `url`, `path` y `position`, y la primera se asigna a `offers.image_url` como imagen principal.
-
-### Logo y portada del negocio
-
-En `frontend/src/pages/BusinessProfile.jsx` (función `optimizeImage`):
-
-- **Portada (`business_cover_url`):** máx **1600×600 px**, WebP `quality = 0.75` con fallback JPG.
-- **Logo (`business_logo_url`):** máx **600×600 px**, WebP `quality = 0.75` con fallback JPG.
-- **Rutas en `business-assets`:**
-  - Portada: `{userId}/cover.webp` (o `.jpg` si fallback).
-  - Logo: `{userId}/logo.webp` (o `.jpg` si fallback).
-- La URL pública se obtiene con `getPublicUrl` y se guarda en `profiles.business_cover_url` / `profiles.business_logo_url`. El vendedor **nunca** pega una URL manual.
-
-## Editor de plantilla profesional en `/business-profile`
-
-`frontend/src/pages/BusinessProfile.jsx` incluye una sección **“🎨 Diseño de mi página”** que permite al vendedor personalizar cómo se verá su mini web pública en `/seller/:slug`. Esta sección **convive** con la portada/logo estilo Facebook y con el formulario de datos del negocio ya existente; no los reemplaza.
-
-Campos que el formulario lee y escribe en `profiles`:
-
-| Campo del formulario | Columna en `profiles` | Tipo de control | Notas |
-|---|---|---|---|
-| Plantilla del negocio | `business_template` | Tarjetas + `<select>` nativo | Valor validado contra el CHECK (`store`, `fashion`, `beauty`, `health`, `gym`, `vehicles`, `food`, `services`). |
-| Titular destacado | `business_headline` | `input[type=text]` (máx. 120 caracteres) | Frase corta que se mostrará grande en la página pública. |
-| Sobre el negocio | `business_about` | `textarea` (5 filas) | Texto largo tipo “sobre nosotros”. |
-| Horario de atención | `business_schedule` | `textarea` (3 filas) | Texto libre multilínea. |
-| Color principal | `business_primary_color` | `input[type=color]` + input HEX + botón “Restablecer” | Se normaliza a HEX (`#rgb` o `#rrggbb`). Default `#2563eb`. |
-
-Detalles de implementación importantes:
-
-- El selector de plantilla muestra **tarjetas accesibles** (con `role="radiogroup"` / `role="radio"`, `aria-checked` y manejo de `Enter`/`Espacio`) **y además** un `<select>` nativo como alternativa accesible y cómoda en móviles. Ambos controles están enlazados al mismo estado.
-- La tarjeta seleccionada usa `business_primary_color` para el borde y la sombra, dando feedback visual del color elegido.
-- Antes de guardar, el frontend:
-  - Valida que `business_template` esté dentro del listado permitido; si no, cae a `'store'`.
-  - Normaliza `business_primary_color` a HEX (`#rgb` o `#rrggbb`); si es inválido, cae al default `#2563eb`.
-  - Sigue normalizando el `business_slug` con `slugify(...)` como antes.
-- El `update` a `profiles` se hace en una sola operación junto con el resto de campos del negocio, sobre la fila `id = auth.uid()`.
-- **Esta pantalla no cambia `SellerPublic.jsx` ni el esquema de Supabase.** El consumo visual de estos campos en la página pública del vendedor se hará en un bloque posterior.
-
-### Cómo probar el editor de plantilla
-
-1. Asegúrate de haber ejecutado [`supabase/business-templates.sql`](./supabase/business-templates.sql) (ver paso **3.1**) para que existan las columnas `business_template`, `business_headline`, `business_about`, `business_schedule` y `business_primary_color` en `profiles`.
-2. Arranca el frontend:
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
-3. Inicia sesión con un usuario y entra a `http://localhost:5173/business-profile`.
-4. Verifica que sigues viendo la portada estilo Facebook, el logo circular y el formulario actual del negocio (no se rompió nada).
-5. Baja hasta la sección **“🎨 Diseño de mi página”** y comprueba que aparece:
-   - El selector de plantilla con 8 tarjetas (Tienda general, Moda / Ropa / Zapatos, Belleza, Salud / Odontología, Gym / Deportes, Vehículos, Plaza / Alimentos, Servicios) y un `<select>` equivalente.
-   - El campo **Titular destacado**.
-   - El campo **Sobre el negocio**.
-   - El campo **Horario de atención**.
-   - El input **Color principal** con selector de color, campo HEX, muestra de color y botón **Restablecer**.
-6. Cambia los valores y pulsa **Guardar cambios**. Debe aparecer “Datos del negocio guardados.”.
-7. Recarga la página: los valores deben persistir (vienen de `profiles`).
-8. (Opcional) En Supabase, **Table Editor → `profiles`**, busca tu fila y confirma que las columnas `business_template`, `business_headline`, `business_about`, `business_schedule` y `business_primary_color` se actualizaron.
 
-## Modelo de datos
+2. Asegúrate de que tu perfil en `profiles` tiene:
+   - `slug` definido (ej: `mi-tienda`)
+   - `business_name`, `business_headline`, `business_about`
+   - `business_logo_url` y `business_cover_url` (URLs públicas)
+   - `business_primary_color` (ej: `#db2777`)
+   - `business_template` (ej: `fashion`)
+   - `business_whatsapp` (número con indicativo, ej: `573001234567`)
+   - `business_address`, `business_city`, `business_department`
+   - `business_schedule` (texto multilínea)
 
-Todas las tablas viven en el esquema `public` y están definidas en [`supabase/schema.sql`](./supabase/schema.sql). Las columnas de **negocio** dentro de `profiles` se añaden con [`supabase/business-profile.sql`](./supabase/business-profile.sql) y las columnas de **plantilla pública** con [`supabase/business-templates.sql`](./supabase/business-templates.sql). El esquema coincide **exactamente** con los campos que usa el frontend actual: no se usan `municipality`, ni `is_active`, ni `category_id`, ni una tabla `categories`, ni `business_category`, ni `business_phone`.
+3. Crea una o más filas en `offers` con `seller_id = <id del perfil>` y `status = 'active'`.
 
-### `profiles`
+4. Abre en el navegador:
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | `uuid` | PK, FK a `auth.users.id`. |
-| `full_name` | `text` | |
-| `phone` | `text` | Teléfono personal del usuario. |
-| `department` | `text` | |
-| `city` | `text` | |
-| `role` | `text` | `'user'` o `'admin'` (default `'user'`). |
-| `created_at` | `timestamptz` | default `now()`. |
-| `updated_at` | `timestamptz` | default `now()`. |
-| `business_name` | `text` | Nombre público del negocio. |
-| `business_slug` | `text` | Identificador único para la URL `/seller/:slug`. Único cuando no es NULL. |
-| `business_description` | `text` | Descripción pública del negocio. |
-| `business_logo_url` | `text` | URL pública del logo (bucket `business-assets`). |
-| `business_cover_url` | `text` | URL pública de la portada (bucket `business-assets`). |
-| `business_whatsapp` | `text` | Número de WhatsApp del negocio (con indicativo, sin signos). |
-| `business_address` | `text` | Dirección del negocio. |
-| `business_department` | `text` | Departamento del negocio. |
-| `business_city` | `text` | Ciudad/municipio del negocio. |
-| `business_template` | `text` | Plantilla visual de la página pública. Default `'store'`. CHECK: `store \| fashion \| beauty \| health \| gym \| vehicles \| food \| services`. Editable desde `/business-profile`. |
-| `business_headline` | `text` | Titular corto destacado del negocio. Editable desde `/business-profile`. |
-| `business_about` | `text` | Texto largo "sobre el negocio". Editable desde `/business-profile`. |
-| `business_schedule` | `text` | Horario de atención (texto libre). Editable desde `/business-profile`. |
-| `business_primary_color` | `text` | Color primario (HEX) de la plantilla. Default `'#2563eb'`. Editable desde `/business-profile`. |
+   ```
+   http://localhost:5173/seller/mi-tienda
+   ```
 
-> ⚠️ El frontend (`BusinessProfile.jsx`) **solo lee y escribe estas columnas** de negocio. No usa `business_category` ni `business_phone`.
+5. Verifica:
+   - ✅ Hero con portada, logo y nombre.
+   - ✅ Botones WhatsApp / Copiar link / Compartir.
+   - ✅ Hasta 3 ofertas en "Destacadas" y el resto en "Todas las ofertas".
+   - ✅ Estado vacío si no hay ofertas activas.
+   - ✅ Cambio visual al modificar `business_template`.
+   - ✅ Responsive en móvil, tablet y escritorio.
 
-### `offers`
+## 🔒 Qué NO se modificó
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | `uuid` | PK, default `gen_random_uuid()`. |
-| `user_id` | `uuid` | FK a `auth.users.id`. **Dueño de la oferta.** |
-| `title` | `text` | obligatorio. |
-| `description` | `text` | |
-| `category` | `text` | texto libre. **No** hay `category_id`. |
-| `price` | `numeric(12,2)` | `>= 0`. |
-| `department` | `text` | |
-| `city` | `text` | |
-| `address` | `text` | |
-| `contact_phone` | `text` | |
-| `contact_name` | `text` | |
-| `status` | `text` | `'active'` \| `'paused'` \| `'sold'` (default `'active'`). **No** hay `is_active`. |
-| `image_url` | `text` | imagen principal (las adicionales viven en `offer_images`). |
-| `created_at` | `timestamptz` | default `now()`. |
-| `updated_at` | `timestamptz` | default `now()`. |
+- Login y autenticación.
+- Cliente de Supabase ni configuración.
+- `schema.sql`.
+- Backend.
+- No se usan workflows ni GitHub Actions.
 
-### `offer_images`
+## 🚀 Stack
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | `uuid` | PK. |
-| `offer_id` | `uuid` | FK a `offers.id` (ON DELETE CASCADE). |
-| `url` | `text` | URL pública/servible para mostrar la imagen. |
-| `path` | `text` | ruta dentro del bucket `offer-images` (para borrar/mover). |
-| `position` | `int` | orden de la imagen (default `0`). |
-| `created_at` | `timestamptz` | default `now()`. |
+- **Frontend**: React + Vite + React Router
+- **Datos**: Supabase (acceso directo desde el cliente)
+- **Auth**: Supabase Auth
 
-### `contact_events`
+## 📁 Estructura relevante
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | `uuid` | PK. |
-| `offer_id` | `uuid` | FK a `offers.id`. |
-| `contacter_id` | `uuid` | FK a `auth.users.id`. **No es `user_id`.** |
-| `channel` | `text` | `'whatsapp'` \| `'phone'` \| `'view'` \| `'other'`. |
-| `created_at` | `timestamptz` | default `now()`. |
-
-### Índices básicos creados
-
-- `profiles(department)`, `profiles(city)`, `profiles(role)`
-- `profiles(business_slug)` único cuando no es NULL, `profiles(business_department)`, `profiles(business_city)`
-- `profiles(business_template)` (creado por `business-templates.sql`)
-- `offers(user_id)`, `offers(status)`, `offers(category)`, `offers(department)`, `offers(city)`, `offers(created_at desc)`
-- `offer_images(offer_id)`, `offer_images(offer_id, position)`
-- `contact_events(offer_id)`, `contact_events(contacter_id)`, `contact_events(created_at desc)`
-
-### Políticas RLS (resumen)
-
-`schema.sql` deja RLS habilitado en las cuatro tablas. Las políticas básicas son:
-
-- **`offers` — lectura pública de ofertas con `status = 'active'`.** El dueño además puede leer todas las suyas (cualquier `status`).
-- **`offers` — el dueño gestiona las suyas:** solo el usuario autenticado cuyo `auth.uid()` coincide con `offers.user_id` puede `insert`, `update` y `delete` sobre sus ofertas.
-- **`offer_images` — siguen a su oferta:** lectura pública si la oferta tiene `status = 'active'`; insert/update/delete solo si la oferta pertenece al usuario autenticado.
-- **`profiles`:** lectura pública (incluye los campos `business_*`, necesarios para `/seller/:slug`); cada usuario solo puede insertar y actualizar su propio perfil (`auth.uid() = profiles.id`).
-- **`contact_events` — insertar:** cualquier usuario autenticado puede registrar un contacto sobre una oferta `active`, siempre que `contacter_id = auth.uid()`.
-- **`contact_events` — lectura:** el dueño de la oferta ve los contactos recibidos; el propio contactante ve los que generó.
-
-## Rutas del frontend
-
-Definidas en `frontend/src/App.jsx` con `react-router-dom`:
-
-| Ruta | Componente | Protección | Descripción |
-|------|------------|------------|-------------|
-| `/` | `Home` | Pública | Landing. |
-| `/login` | `Login` | Pública | Inicio de sesión vía Supabase Auth. |
-| `/register` | `Register` | Pública | Registro vía Supabase Auth. |
-| `/offers/:id` | `OfferDetail` | Pública | Detalle de una oferta. |
-| `/seller/:slug` | `SellerPublic` | Pública | Página pública de un vendedor (usa `business_slug`). |
-| `/publish` | `Publish` | `ProtectedRoute` | Publicar una oferta. |
-| `/my-offers` | `MyOffers` | `ProtectedRoute` | Ofertas del usuario actual. |
-| `/business-profile` | `BusinessProfile` | `ProtectedRoute` | Editar nombre, slug, logo, portada, datos del negocio y **plantilla profesional** (sección “Diseño de mi página”). |
-| `/admin` | `Admin` | `ProtectedRoute adminOnly` | Panel de administración. |
-| `*` | `NotFound` | — | 404. |
-
-## Cómo ejecutar el frontend
-
-Requisitos: Node.js 18+ y npm.
-
-```bash
-cd frontend
-npm install
-npm run dev      # desarrollo (http://localhost:5173)
-npm run build    # build de producción en frontend/dist
-npm run preview  # previsualizar el build
 ```
-
-## PWA
-
-La app está diseñada como **PWA**: incluye `manifest.webmanifest` e instala un service worker para soporte offline básico y experiencia tipo app en móvil. Tras `npm run build`, el navegador ofrecerá la opción **"Instalar app"** en sitios servidos por HTTPS (o en `localhost`).
-
-## Despliegue
-
-- Cualquier hosting estático sirve para el frontend: **Vercel**, **Netlify**, **Cloudflare Pages**, **GitHub Pages**, etc. Solo hay que publicar el contenido de `frontend/dist`.
-- Recuerda añadir tus URLs de producción en **Supabase → Authentication → URL Configuration**.
-
-## Reglas del proyecto
-
-- ❌ Sin workflows de GitHub Actions.
-- ❌ Sin backend Node propio.
-- ❌ Sin SQLite.
-- ❌ Sin secretos reales en el repo (solo `.env.example` si se necesitan ejemplos).
-- ✅ Todo el backend lo provee Supabase (Auth + Postgres + Storage).
-- ✅ La seguridad de datos se basa en **RLS**, no en código del cliente.
+frontend/
+  src/
+    pages/
+      SellerPage.jsx   ← Mini sitio web premium del vendedor
+    services/
+      supabase.js
+```
