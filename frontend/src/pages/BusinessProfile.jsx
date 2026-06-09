@@ -21,6 +21,24 @@ const TEMPLATE_OPTIONS = [
 
 const DEFAULT_PRIMARY_COLOR = '#2563eb'
 
+// Lista única de columnas de perfil a leer/escribir.
+const PROFILE_COLUMNS = [
+  'business_name',
+  'business_slug',
+  'business_description',
+  'business_logo_url',
+  'business_cover_url',
+  'business_whatsapp',
+  'business_address',
+  'business_department',
+  'business_city',
+  'business_template',
+  'business_headline',
+  'business_about',
+  'business_schedule',
+  'business_primary_color',
+]
+
 // Genera un slug URL-safe a partir de un texto libre.
 function slugify(input) {
   return (input || '')
@@ -42,6 +60,26 @@ function normalizeHex(color) {
   const c = String(color).trim()
   if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)) return c
   return DEFAULT_PRIMARY_COLOR
+}
+
+// Aplica los datos crudos de Supabase al estado local del formulario.
+function mapDbToState(data) {
+  return {
+    business_name: data?.business_name || '',
+    business_slug: data?.business_slug || '',
+    business_description: data?.business_description || '',
+    business_logo_url: data?.business_logo_url || '',
+    business_cover_url: data?.business_cover_url || '',
+    business_whatsapp: data?.business_whatsapp || '',
+    business_address: data?.business_address || '',
+    business_department: data?.business_department || '',
+    business_city: data?.business_city || '',
+    business_template: data?.business_template || 'store',
+    business_headline: data?.business_headline || '',
+    business_about: data?.business_about || '',
+    business_schedule: data?.business_schedule || '',
+    business_primary_color: normalizeHex(data?.business_primary_color),
+  }
 }
 
 // Optimiza una imagen en el navegador usando canvas.
@@ -89,6 +127,63 @@ async function optimizeImage(file, maxW, maxH, quality = 0.75) {
   return { blob: jpgBlob, ext: 'jpg', mime: 'image/jpeg' }
 }
 
+// Asegura que exista una fila en `profiles` para este usuario.
+// Si no existe, la crea con id = user.id y role = 'user'.
+// Devuelve la fila final (existente o recién creada) o null si falla.
+async function ensureProfileRow(user) {
+  if (!user) return null
+
+  // 1) ¿Ya existe?
+  const { data: existing, error: selErr } = await supabase
+    .from('profiles')
+    .select(['id', ...PROFILE_COLUMNS].join(', '))
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (selErr) throw selErr
+  if (existing) return existing
+
+  // 2) Insertar fila mínima. Si el schema no acepta `role`, reintentamos sin él.
+  const baseRow = {
+    id: user.id,
+    business_template: 'store',
+    business_primary_color: DEFAULT_PRIMARY_COLOR,
+  }
+
+  let insertRes = await supabase
+    .from('profiles')
+    .insert({ ...baseRow, role: 'user' })
+    .select(['id', ...PROFILE_COLUMNS].join(', '))
+    .maybeSingle()
+
+  if (insertRes.error) {
+    const msg = insertRes.error.message || ''
+    // Si la columna `role` no existe o no acepta ese valor, reintentar sin role.
+    if (/role/i.test(msg) || insertRes.error.code === '42703') {
+      insertRes = await supabase
+        .from('profiles')
+        .insert(baseRow)
+        .select(['id', ...PROFILE_COLUMNS].join(', '))
+        .maybeSingle()
+    }
+  }
+
+  if (insertRes.error) {
+    // Posible carrera: otro proceso creó la fila justo antes. Volvemos a leer.
+    if (insertRes.error.code === '23505') {
+      const { data: again } = await supabase
+        .from('profiles')
+        .select(['id', ...PROFILE_COLUMNS].join(', '))
+        .eq('id', user.id)
+        .maybeSingle()
+      if (again) return again
+    }
+    throw insertRes.error
+  }
+
+  return insertRes.data
+}
+
 export default function BusinessProfile() {
   const navigate = useNavigate()
   const [userId, setUserId] = useState(null)
@@ -99,12 +194,6 @@ export default function BusinessProfile() {
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
 
-  // Columnas reales de profiles para el negocio:
-  // business_name, business_slug, business_description,
-  // business_logo_url, business_cover_url, business_whatsapp,
-  // business_address, business_department, business_city,
-  // business_template, business_headline, business_about,
-  // business_schedule, business_primary_color
   const [profile, setProfile] = useState({
     business_name: '',
     business_slug: '',
@@ -125,6 +214,22 @@ export default function BusinessProfile() {
   const coverInputRef = useRef(null)
   const logoInputRef = useRef(null)
 
+  // Vuelve a leer el perfil desde Supabase y refresca el estado.
+  async function reloadProfile(uid) {
+    const id = uid || userId
+    if (!id) return null
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(PROFILE_COLUMNS.join(', '))
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    if (data) {
+      setProfile(mapDbToState(data))
+    }
+    return data
+  }
+
   useEffect(() => {
     let mounted = true
     async function load() {
@@ -137,47 +242,11 @@ export default function BusinessProfile() {
         if (!mounted) return
         setUserId(user.id)
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select([
-            'business_name',
-            'business_slug',
-            'business_description',
-            'business_logo_url',
-            'business_cover_url',
-            'business_whatsapp',
-            'business_address',
-            'business_department',
-            'business_city',
-            'business_template',
-            'business_headline',
-            'business_about',
-            'business_schedule',
-            'business_primary_color',
-          ].join(', '))
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (error) throw error
-
-        if (data && mounted) {
-          setProfile((p) => ({
-            ...p,
-            business_name: data.business_name || '',
-            business_slug: data.business_slug || '',
-            business_description: data.business_description || '',
-            business_logo_url: data.business_logo_url || '',
-            business_cover_url: data.business_cover_url || '',
-            business_whatsapp: data.business_whatsapp || '',
-            business_address: data.business_address || '',
-            business_department: data.business_department || '',
-            business_city: data.business_city || '',
-            business_template: data.business_template || 'store',
-            business_headline: data.business_headline || '',
-            business_about: data.business_about || '',
-            business_schedule: data.business_schedule || '',
-            business_primary_color: normalizeHex(data.business_primary_color),
-          }))
+        // 1) Garantizar fila en profiles (crea si no existe).
+        const row = await ensureProfileRow(user)
+        if (!mounted) return
+        if (row) {
+          setProfile(mapDbToState(row))
         }
       } catch (e) {
         console.error(e)
@@ -243,14 +312,23 @@ export default function BusinessProfile() {
 
       const column = isCover ? 'business_cover_url' : 'business_logo_url'
 
-      const { error: dbErr } = await supabase
+      // UPSERT seguro: si por alguna razón aún no existe la fila, se crea.
+      const { data: upserted, error: dbErr } = await supabase
         .from('profiles')
-        .update({ [column]: publicUrl })
-        .eq('id', userId)
+        .upsert(
+          { id: userId, [column]: publicUrl },
+          { onConflict: 'id' }
+        )
+        .select(PROFILE_COLUMNS.join(', '))
+        .maybeSingle()
 
       if (dbErr) throw dbErr
 
-      setProfile((p) => ({ ...p, [column]: publicUrl }))
+      if (upserted) {
+        setProfile(mapDbToState(upserted))
+      } else {
+        setProfile((p) => ({ ...p, [column]: publicUrl }))
+      }
       setOkMsg(isCover ? 'Portada actualizada.' : 'Logo actualizado.')
     } catch (e) {
       console.error(e)
@@ -291,15 +369,18 @@ export default function BusinessProfile() {
 
       const cleanColor = normalizeHex(profile.business_primary_color)
 
+      // Payload de UPSERT. Incluimos id para el conflict target.
       const payload = {
+        id: userId,
         business_name: profile.business_name || null,
         business_slug: cleanSlug || null,
         business_description: profile.business_description || null,
+        business_logo_url: profile.business_logo_url || null,
+        business_cover_url: profile.business_cover_url || null,
         business_whatsapp: profile.business_whatsapp || null,
         business_address: profile.business_address || null,
         business_department: profile.business_department || null,
         business_city: profile.business_city || null,
-        // Campos de plantilla profesional:
         business_template: cleanTemplate,
         business_headline: profile.business_headline || null,
         business_about: profile.business_about || null,
@@ -307,28 +388,48 @@ export default function BusinessProfile() {
         business_primary_color: cleanColor,
       }
 
-      const { error } = await supabase
+      // UPSERT con detección real de filas afectadas:
+      // pedimos `select(...)` para obtener la fila persistida.
+      const { data: saved, error: upErr } = await supabase
         .from('profiles')
-        .update(payload)
-        .eq('id', userId)
-      if (error) throw error
+        .upsert(payload, { onConflict: 'id' })
+        .select(PROFILE_COLUMNS.join(', '))
+        .maybeSingle()
 
-      setProfile((p) => ({
-        ...p,
-        business_slug: cleanSlug,
-        business_template: cleanTemplate,
-        business_primary_color: cleanColor,
-      }))
-      setOkMsg('Datos del negocio guardados.')
+      if (upErr) throw upErr
+
+      if (!saved) {
+        // No hubo fila confirmada => no confirmamos éxito.
+        throw new Error('Supabase no confirmó el guardado.')
+      }
+
+      // Re-lectura fresca desde Supabase para asegurar consistencia
+      // (RLS, triggers, normalizaciones del servidor, etc.).
+      const fresh = await reloadProfile(userId)
+      if (!fresh) {
+        throw new Error('Los datos se guardaron pero no se pudieron releer.')
+      }
+
+      setOkMsg('Datos del negocio guardados correctamente.')
     } catch (e) {
       console.error(e)
+      const msg = e?.message || ''
       // Slug duplicado típico: violación de índice único.
-      if (e && (e.code === '23505' || /duplicate|unique/i.test(e.message || ''))) {
-        setError('Ese identificador de tienda (slug) ya está en uso. Prueba con otro.')
-      } else if (e && /business_template/i.test(e.message || '')) {
+      if (e && (e.code === '23505' || /duplicate|unique/i.test(msg))) {
+        if (/business_slug/i.test(msg) || /slug/i.test(msg)) {
+          setError(
+            'Ese identificador de tienda (slug) ya está en uso por otro negocio. ' +
+            'Prueba con otro slug.'
+          )
+        } else {
+          setError('Ya existe un registro con esos datos. Verifica el slug u otros campos únicos.')
+        }
+      } else if (e && /business_template/i.test(msg)) {
         setError('La plantilla seleccionada no es válida.')
+      } else if (/permission|denied|rls/i.test(msg)) {
+        setError('No tienes permisos para guardar este perfil. Vuelve a iniciar sesión.')
       } else {
-        setError('No se pudieron guardar los cambios.')
+        setError(msg || 'No se pudieron guardar los cambios.')
       }
     } finally {
       setSaving(false)
@@ -336,9 +437,6 @@ export default function BusinessProfile() {
   }
 
   // Estilos inline mínimos para no depender de un CSS externo.
-  // Las clases base (container, btn, btn-primary, btn-secondary, alert, etc.)
-  // se asumen presentes en App.css; aquí solo añadimos lo específico
-  // (portada y logo circular estilo Facebook + tarjetas de plantilla).
   const styles = {
     cover: {
       position: 'relative',
