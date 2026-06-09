@@ -1,0 +1,317 @@
+/* =============================================================
+   seller-modules.css
+   Estilos premium para los modulos de la pagina publica del
+   vendedor (StoreModule y futuros). Diseno responsive, cards,
+   sombras suaves y animaciones. Usa --sm-accent (acento del
+   negocio) definido en linea por cada modulo.
+   ============================================================= */
+
+.sm-store {
+  --sm-accent: #2563eb;
+  --sm-accent-soft: color-mix(in srgb, var(--sm-accent) 12%, #ffffff);
+  --sm-bg-1: #ffffff;
+  --sm-bg-2: #f6f8fc;
+  --sm-text: #1f2933;
+  --sm-text-soft: #5b6776;
+  --sm-radius: 18px;
+  --sm-shadow: 0 6px 22px rgba(15, 23, 42, 0.08);
+  --sm-shadow-hover: 0 18px 42px rgba(15, 23, 42, 0.16);
+  --sm-transition: 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--sm-text);
+}
+
+/* ---------- Animacion fade-up ---------- */
+@keyframes smFadeUp {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sm-fade-up {
+  animation: smFadeUp 0.6s var(--sm-transition) both;
+}
+
+/* ---------- Secciones ---------- */
+.sm-section {
+  padding: clamp(2.5rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3rem);
+}
+
+.sm-section:nth-of-type(odd)  { background: var(--sm-bg-1); }
+.sm-section:nth-of-type(even) { background: var(--sm-bg-2); }
+
+.sm-section-head {
+  text-align: center;
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.sm-section-head h3 {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.sm-divider {
+  display: block;
+  width: 60px;
+  height: 4px;
+  margin: 0.8rem auto 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sm-accent), color-mix(in srgb, var(--sm-accent) 45%, #ffffff));
+}
+
+/* ---------- Bienvenida ---------- */
+.sm-welcome {
+  text-align: center;
+}
+
+.sm-welcome-inner {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.sm-title {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin: 0 0 0.75rem;
+}
+
+.sm-subtitle {
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+  color: var(--sm-text-soft);
+  margin: 0 0 1.75rem;
+}
+
+/* ---------- Botones ---------- */
+.sm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.98rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform var(--sm-transition), box-shadow var(--sm-transition),
+    background var(--sm-transition), color var(--sm-transition);
+}
+
+.sm-btn-sm {
+  padding: 0.6rem 1.05rem;
+  font-size: 0.9rem;
+}
+
+.sm-btn-icon { font-size: 1.1em; line-height: 1; }
+
+.sm-btn-whatsapp {
+  background: var(--sm-accent);
+  color: #ffffff;
+  box-shadow: var(--sm-shadow);
+}
+
+.sm-btn-whatsapp:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sm-shadow-hover);
+}
+
+.sm-btn-outline {
+  background: transparent;
+  color: var(--sm-accent);
+  border-color: color-mix(in srgb, var(--sm-accent) 40%, transparent);
+}
+
+.sm-btn-outline:hover {
+  background: var(--sm-accent-soft);
+  transform: translateY(-2px);
+}
+
+/* ---------- Beneficios ---------- */
+.sm-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: clamp(1.1rem, 2.4vw, 1.9rem);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.sm-benefit-card {
+  background: var(--sm-bg-1);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--sm-radius);
+  padding: clamp(1.5rem, 2.5vw, 2rem);
+  text-align: center;
+  box-shadow: var(--sm-shadow);
+  transition: transform var(--sm-transition), box-shadow var(--sm-transition);
+}
+
+.sm-benefit-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--sm-shadow-hover);
+}
+
+.sm-benefit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  font-size: 1.8rem;
+  border-radius: 16px;
+  margin-bottom: 1rem;
+  background: var(--sm-accent-soft);
+  color: var(--sm-accent);
+}
+
+.sm-benefit-card h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.sm-benefit-card p {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--sm-text-soft);
+  margin: 0;
+}
+
+/* ---------- Ofertas ---------- */
+.sm-offers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: clamp(1.2rem, 2.5vw, 2rem);
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.sm-offer-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--sm-bg-1);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--sm-radius);
+  overflow: hidden;
+  box-shadow: var(--sm-shadow);
+  transition: transform var(--sm-transition), box-shadow var(--sm-transition);
+}
+
+.sm-offer-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--sm-shadow-hover);
+}
+
+.sm-offer-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--sm-bg-2);
+  overflow: hidden;
+}
+
+.sm-offer-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.45s var(--sm-transition);
+}
+
+.sm-offer-card:hover .sm-offer-media img {
+  transform: scale(1.06);
+}
+
+.sm-offer-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2.6rem;
+  color: var(--sm-text-soft);
+}
+
+.sm-offer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  flex: 1;
+}
+
+.sm-offer-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sm-offer-desc {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--sm-text-soft);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sm-offer-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.sm-offer-price {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--sm-accent);
+}
+
+.sm-offer-oldprice {
+  font-size: 0.95rem;
+  color: var(--sm-text-soft);
+  text-decoration: line-through;
+}
+
+.sm-offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+/* ---------- Responsive movil ---------- */
+@media (max-width: 768px) {
+  .sm-section { padding: 2.25rem 1.1rem; }
+
+  .sm-benefits-grid,
+  .sm-offers-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sm-btn-whatsapp {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sm-offer-actions .sm-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ---------- Accesibilidad: menos movimiento ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .sm-fade-up,
+  .sm-benefit-card,
+  .sm-offer-card,
+  .sm-offer-media img,
+  .sm-btn {
+    animation: none;
+    transition: none;
+  }
+}
