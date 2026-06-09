@@ -1,109 +1,141 @@
-# SumercéMarket
+# Sumercé Market
 
-Marketplace local que permite a cada vendedor tener su propia **mini página web profesional** dentro de la plataforma, conectada a sus ofertas activas.
+Marketplace donde cada vendedor obtiene su **mini web pública premium** con URL personalizada, animaciones suaves y secciones de servicios adaptadas al tipo de negocio.
 
-## ✨ Página del vendedor (`/seller/:slug`) — Bloque 3 Premium
+---
 
-`/seller/:slug` ya no es una ficha básica: es una **landing tipo Wix** que cada vendedor puede presentar como "su página web".
+## ✨ Novedades
 
-### Qué incluye
+### Web pública del vendedor (`/seller/:slug`)
+Cada vendedor cuenta con un sitio profesional que incluye:
 
-- **Hero premium** con portada de fondo, overlay degradado, logo circular, nombre grande, frase principal y ubicación.
-- **Botones de acción**: WhatsApp, Copiar link y Compartir tienda (usa `navigator.share` cuando está disponible).
-- **Secciones**:
-  - Sobre el negocio
-  - Horario
-  - Ubicación (con link a Google Maps)
-  - Ofertas destacadas (máx. 3)
-  - Todas las ofertas
-- **Color principal** del negocio aplicado a títulos, precios y botones (`business_primary_color`).
-- **Estado vacío bonito** cuando no hay ofertas activas.
-- **Diseño responsive** optimizado para celular, tablet y escritorio.
+- **Hero premium** con portada, logo, descripción y CTA a WhatsApp.
+- **Sobre el negocio**.
+- **Lo que ofrecemos**: tarjetas de servicios generadas automáticamente según `business_template` (`fashion`, `beauty`, `health`, `gym`, `vehicles`, `food`, `services`, `store`) más los servicios personalizados que el vendedor agregue.
+- **Horario** de atención.
+- **Ubicación** con enlace directo a Google Maps.
+- **Ofertas destacadas** (top 3).
+- **Todas las ofertas activas** (`status = active`).
+- **Llamado final a WhatsApp**.
+- **Estado vacío** elegante cuando aún no hay ofertas.
+- Animaciones suaves: `fade`, `slide`, `hover` en tarjetas y botones.
+- Color principal tomado de `business_primary_color`.
+- Totalmente responsive: móvil, tablet y escritorio.
 
-### Campos leídos de `profiles`
+### Perfil del negocio (`/business-profile`)
+- **Portada + logo** estilo Facebook con subida directa a **Supabase Storage** (no se piden URLs manuales).
+- **Generación automática de `business_slug`** a partir del nombre del negocio.
+- **URL pública en vivo**: `/seller/{business_slug}` se muestra mientras se edita.
+- **Validación de unicidad del slug** contra la tabla `profiles` (debounce 400 ms).
+- Botones rápidos:
+  - 🌐 **Ver mi web** (abre el sitio público).
+  - 🔗 **Copiar link**.
+  - 📱 **Compartir por WhatsApp**.
+- Campos: nombre, descripción, plantilla, color principal, teléfono, WhatsApp, dirección, horario y servicios.
 
-`business_template`, `business_headline`, `business_about`, `business_schedule`,
-`business_primary_color`, `business_name`, `business_logo_url`, `business_cover_url`,
-`business_whatsapp`, `business_address`, `business_department`, `business_city`.
+---
 
-### Ofertas
+## 🧱 Stack
 
-Se consulta la tabla `offers` filtrando por `seller_id = profile.id` y `status = 'active'`, ordenadas por fecha de creación. Las primeras 3 se muestran como **destacadas**, el resto en la sección **Todas las ofertas**.
+- **Frontend**: React + Vite + React Router.
+- **Backend de datos**: Supabase (Auth, Postgres, Storage).
+- Sin GitHub Actions, sin workflows, sin backend propio.
 
-## 🎨 Plantillas visuales por rubro (`business_template`)
+---
 
-Cada plantilla cambia tipografía, fondo, gradiente del hero, radios y color base sugerido:
-
-| Plantilla   | Estilo                              | Pensado para           |
-|-------------|-------------------------------------|------------------------|
-| `store`     | Limpio, azul, neutro                | Tiendas generales      |
-| `fashion`   | Editorial, serif, rosa              | Moda y ropa            |
-| `beauty`    | Suave, magenta, redondeado          | Belleza y cosmética    |
-| `health`    | Sobrio, celeste, profesional        | Salud y bienestar      |
-| `gym`       | Oscuro, naranja, energético         | Fitness y gimnasios    |
-| `vehicles`  | Premium, gris oscuro, Montserrat    | Vehículos              |
-| `food`      | Cálido, rojo, redondeado            | Comida y restaurantes  |
-| `services`  | Confiable, verde azulado            | Servicios              |
-
-Si `business_template` está vacío o no coincide, se usa `store` como predeterminado.
-
-## 🧪 Cómo probar `/seller/:slug`
-
-1. Inicia el frontend:
-
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-2. Asegúrate de que tu perfil en `profiles` tiene:
-   - `slug` definido (ej: `mi-tienda`)
-   - `business_name`, `business_headline`, `business_about`
-   - `business_logo_url` y `business_cover_url` (URLs públicas)
-   - `business_primary_color` (ej: `#db2777`)
-   - `business_template` (ej: `fashion`)
-   - `business_whatsapp` (número con indicativo, ej: `573001234567`)
-   - `business_address`, `business_city`, `business_department`
-   - `business_schedule` (texto multilínea)
-
-3. Crea una o más filas en `offers` con `seller_id = <id del perfil>` y `status = 'active'`.
-
-4. Abre en el navegador:
-
-   ```
-   http://localhost:5173/seller/mi-tienda
-   ```
-
-5. Verifica:
-   - ✅ Hero con portada, logo y nombre.
-   - ✅ Botones WhatsApp / Copiar link / Compartir.
-   - ✅ Hasta 3 ofertas en "Destacadas" y el resto en "Todas las ofertas".
-   - ✅ Estado vacío si no hay ofertas activas.
-   - ✅ Cambio visual al modificar `business_template`.
-   - ✅ Responsive en móvil, tablet y escritorio.
-
-## 🔒 Qué NO se modificó
-
-- Login y autenticación.
-- Cliente de Supabase ni configuración.
-- `schema.sql`.
-- Backend.
-- No se usan workflows ni GitHub Actions.
-
-## 🚀 Stack
-
-- **Frontend**: React + Vite + React Router
-- **Datos**: Supabase (acceso directo desde el cliente)
-- **Auth**: Supabase Auth
-
-## 📁 Estructura relevante
+## 📂 Estructura relevante
 
 ```
 frontend/
-  src/
-    pages/
-      SellerPage.jsx   ← Mini sitio web premium del vendedor
-    services/
-      supabase.js
+├── index.html
+├── package.json
+└── src/
+    ├── main.jsx
+    ├── App.jsx
+    ├── pages/
+    │   ├── BusinessProfile.jsx   ← perfil + URL pública + acciones
+    │   └── SellerPage.jsx        ← mini web premium del vendedor
+    └── services/
+        └── supabaseClient.js
 ```
+
+---
+
+## ⚙️ Configuración
+
+Crea `frontend/.env` (ver `.env.example`) con:
+
+```
+VITE_SUPABASE_URL=tu-url-de-supabase
+VITE_SUPABASE_ANON_KEY=tu-anon-key
+```
+
+### Supabase Storage
+
+Crea un bucket público llamado **`business`** para almacenar portadas y logos:
+
+1. Supabase → Storage → New bucket → `business` → Public.
+2. Política de subida: permite `INSERT` y `UPDATE` al usuario autenticado sobre archivos cuyo path comience con su `auth.uid()`.
+
+### Tabla `profiles` (campos esperados)
+
+```
+id (uuid, PK, = auth.users.id)
+business_name           text
+business_slug           text UNIQUE
+business_description    text
+business_template       text   -- fashion | beauty | health | gym | vehicles | food | services | store
+business_primary_color  text
+business_phone          text
+business_whatsapp       text   -- con código de país, ej: 573001234567
+business_address        text
+business_schedule       text
+business_services       text   -- separados por coma
+cover_url               text
+logo_url                text
+updated_at              timestamptz
+```
+
+### Tabla `offers` (campos usados)
+
+```
+id, user_id, title, description, image_url, price, old_price, status, created_at
+```
+
+Solo se muestran las ofertas con `status = 'active'`.
+
+---
+
+## ▶️ Cómo probar
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Luego:
+
+1. Inicia sesión como vendedor.
+2. Ve a **Perfil del negocio** (`/business-profile`).
+3. Escribe el **nombre del negocio** → verás cómo se genera el **slug** y la **URL pública** automáticamente.
+4. Sube **portada** y **logo** (se guardan en Supabase Storage).
+5. Completa descripción, plantilla, color, teléfono, WhatsApp, dirección, horario y servicios.
+6. Guarda los cambios.
+7. Usa los botones:
+   - **Ver mi web** → abre `/seller/{tu-slug}`.
+   - **Copiar link** → copia la URL al portapapeles.
+   - **Compartir por WhatsApp** → abre WhatsApp con el mensaje listo.
+8. En la web pública verifica:
+   - Hero, sobre nosotros, servicios (cambian según `business_template`), horario, ubicación, ofertas destacadas, todas las ofertas y CTA final.
+   - Anímaciones suaves y diseño responsive en móvil / tablet / escritorio.
+   - Estado vacío cuando aún no hay ofertas activas.
+
+---
+
+## 🛡️ Notas
+
+- No se incluyen secretos reales; usa `.env.example` como guía.
+- No hay workflows ni GitHub Actions.
+- No se modificó el sistema de login ni el `schema.sql`.
+- Todo el contenido es texto plano, sin Base64.
