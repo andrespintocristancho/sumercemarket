@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "../services/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 /**
  * SellerPage
