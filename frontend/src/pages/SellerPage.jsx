@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { supabase } from '../services/supabase'
+import { supabase } from '../lib/supabaseClient'
 
 /**
  * SellerPage - Mini sitio web profesional del vendedor
