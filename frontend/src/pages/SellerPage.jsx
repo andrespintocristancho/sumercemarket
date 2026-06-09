@@ -24,7 +24,8 @@ const TEMPLATES = {
     label: 'Tienda',
     emoji: '🛍️',
     fallbackColor: '#2563eb',
-    heroGradient: 'linear-gradient(135deg, rgba(15,23,42,0.85) 0%, rgba(37,99,235,0.55) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.78) 100%)',
+    heroFallback: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
     bg: '#f8fafc',
     accentSoft: '#eff6ff',
     font: "'Inter', system-ui, -apple-system, sans-serif",
@@ -34,7 +35,8 @@ const TEMPLATES = {
     label: 'Moda',
     emoji: '👗',
     fallbackColor: '#db2777',
-    heroGradient: 'linear-gradient(135deg, rgba(30,0,20,0.75) 0%, rgba(219,39,119,0.5) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(30,0,20,0.25) 0%, rgba(30,0,20,0.75) 100%)',
+    heroFallback: 'linear-gradient(135deg, #831843 0%, #db2777 100%)',
     bg: '#fdf2f8',
     accentSoft: '#fce7f3',
     font: "'Playfair Display', 'Georgia', serif",
@@ -44,7 +46,8 @@ const TEMPLATES = {
     label: 'Belleza',
     emoji: '💄',
     fallbackColor: '#c026d3',
-    heroGradient: 'linear-gradient(135deg, rgba(80,7,76,0.75) 0%, rgba(232,121,249,0.5) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(80,7,76,0.3) 0%, rgba(80,7,76,0.78) 100%)',
+    heroFallback: 'linear-gradient(135deg, #86198f 0%, #e879f9 100%)',
     bg: '#fdf4ff',
     accentSoft: '#fae8ff',
     font: "'Poppins', system-ui, sans-serif",
@@ -54,7 +57,8 @@ const TEMPLATES = {
     label: 'Salud',
     emoji: '🩺',
     fallbackColor: '#0ea5e9',
-    heroGradient: 'linear-gradient(135deg, rgba(7,89,133,0.8) 0%, rgba(14,165,233,0.45) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(7,89,133,0.3) 0%, rgba(7,89,133,0.8) 100%)',
+    heroFallback: 'linear-gradient(135deg, #075985 0%, #0ea5e9 100%)',
     bg: '#f0f9ff',
     accentSoft: '#e0f2fe',
     font: "'Inter', system-ui, sans-serif",
@@ -64,7 +68,8 @@ const TEMPLATES = {
     label: 'Fitness',
     emoji: '💪',
     fallbackColor: '#f97316',
-    heroGradient: 'linear-gradient(135deg, rgba(20,20,20,0.85) 0%, rgba(249,115,22,0.55) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(20,20,20,0.35) 0%, rgba(20,20,20,0.85) 100%)',
+    heroFallback: 'linear-gradient(135deg, #1f2937 0%, #f97316 100%)',
     bg: '#0f172a',
     accentSoft: '#1e293b',
     font: "'Bebas Neue', 'Inter', sans-serif",
@@ -75,7 +80,8 @@ const TEMPLATES = {
     label: 'Vehículos',
     emoji: '🚗',
     fallbackColor: '#334155',
-    heroGradient: 'linear-gradient(135deg, rgba(2,6,23,0.9) 0%, rgba(51,65,85,0.6) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(2,6,23,0.4) 0%, rgba(2,6,23,0.85) 100%)',
+    heroFallback: 'linear-gradient(135deg, #0f172a 0%, #475569 100%)',
     bg: '#f1f5f9',
     accentSoft: '#e2e8f0',
     font: "'Montserrat', system-ui, sans-serif",
@@ -85,7 +91,8 @@ const TEMPLATES = {
     label: 'Comida',
     emoji: '🍔',
     fallbackColor: '#dc2626',
-    heroGradient: 'linear-gradient(135deg, rgba(69,10,10,0.8) 0%, rgba(220,38,38,0.5) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(69,10,10,0.3) 0%, rgba(69,10,10,0.8) 100%)',
+    heroFallback: 'linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%)',
     bg: '#fef2f2',
     accentSoft: '#fee2e2',
     font: "'Nunito', system-ui, sans-serif",
@@ -95,7 +102,8 @@ const TEMPLATES = {
     label: 'Servicios',
     emoji: '🛠️',
     fallbackColor: '#0d9488',
-    heroGradient: 'linear-gradient(135deg, rgba(19,78,74,0.8) 0%, rgba(13,148,136,0.5) 100%)',
+    heroGradient: 'linear-gradient(180deg, rgba(19,78,74,0.3) 0%, rgba(19,78,74,0.8) 100%)',
+    heroFallback: 'linear-gradient(135deg, #134e4a 0%, #0d9488 100%)',
     bg: '#f0fdfa',
     accentSoft: '#ccfbf1',
     font: "'Inter', system-ui, sans-serif",
@@ -286,61 +294,49 @@ export default function SellerPage() {
       <style>{globalCss}</style>
 
       {/* ---------- HERO ---------- */}
-      <header className="sm-hero" style={styles.hero}>
+      <header className="sm-hero">
+        {/* Capa 1: Imagen de portada o fallback degradado */}
         <div
-          className="sm-hero-bg"
+          className="sm-hero-media"
           style={{
-            ...styles.heroBg,
-            backgroundImage: cover
-              ? `${template.heroGradient}, url(${cover})`
-              : `${template.heroGradient}, linear-gradient(135deg, ${primary} 0%, #0f172a 100%)`,
+            background: !cover ? template.heroFallback : '#0f172a',
           }}
-        />
+        >
+          {cover && (
+            <img
+              src={cover}
+              alt={`Portada de ${businessName}`}
+              className="sm-hero-img"
+              loading="eager"
+              draggable={false}
+            />
+          )}
+          {/* Capa 2: Overlay degradado oscuro para legibilidad del texto */}
+          <div
+            className="sm-hero-overlay"
+            style={{ background: template.heroGradient }}
+          />
+        </div>
 
-        <div className="sm-container sm-hero-inner" style={styles.heroInner}>
+        {/* Capa 3: Contenido del hero */}
+        <div className="sm-container sm-hero-inner">
           <div className="sm-hero-top">
-            <span className="sm-chip" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>
+            <span className="sm-chip">
               {template.emoji} {template.label}
             </span>
           </div>
 
           <div className="sm-hero-main">
-            <div
-              className="sm-logo"
-              style={{
-                ...styles.logoCircle,
-                borderColor: primary,
-                background: logo ? `url(${logo}) center/cover no-repeat` : '#fff',
-              }}
-              aria-label={`Logo de ${businessName}`}
-            >
-              {!logo && (
-                <span style={{ color: primary, fontWeight: 800, fontSize: 36 }}>
-                  {businessName.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
+            <h1 className="sm-hero-title">{businessName}</h1>
 
-            <h1 className="sm-hero-title" style={styles.heroTitle}>
-              {businessName}
-            </h1>
+            {headline && <p className="sm-hero-headline">{headline}</p>}
 
-            {headline && (
-              <p className="sm-hero-headline" style={styles.heroHeadline}>
-                {headline}
-              </p>
-            )}
-
-            {locationText && (
-              <p className="sm-hero-loc" style={styles.heroLoc}>
-                📍 {locationText}
-              </p>
-            )}
+            {locationText && <p className="sm-hero-loc">📍 {locationText}</p>}
 
             <div className="sm-hero-actions">
               {whatsapp && (
                 <a
-                  className="sm-btn sm-btn-primary"
+                  className="sm-btn"
                   href={buildWhatsAppLink(whatsapp, `Hola ${businessName}, vi tu tienda en SumercéMarket`)}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -352,7 +348,6 @@ export default function SellerPage() {
               <button
                 className="sm-btn sm-btn-ghost"
                 onClick={handleCopy}
-                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)' }}
                 type="button"
               >
                 {copied ? '✅ Copiado' : '🔗 Copiar link'}
@@ -360,7 +355,6 @@ export default function SellerPage() {
               <button
                 className="sm-btn sm-btn-ghost"
                 onClick={handleShare}
-                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)' }}
                 type="button"
               >
                 📤 Compartir tienda
@@ -369,6 +363,31 @@ export default function SellerPage() {
           </div>
         </div>
       </header>
+
+      {/* ---------- LOGO CIRCULAR sobre el hero ---------- */}
+      <div className="sm-container sm-logo-wrap">
+        <div
+          className="sm-logo"
+          style={{
+            borderColor: '#ffffff',
+            background: logo ? '#fff' : '#fff',
+          }}
+          aria-label={`Logo de ${businessName}`}
+        >
+          {logo ? (
+            <img
+              src={logo}
+              alt={`Logo de ${businessName}`}
+              className="sm-logo-img"
+              draggable={false}
+            />
+          ) : (
+            <span style={{ color: primary, fontWeight: 800, fontSize: 40 }}>
+              {businessName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ---------- SOBRE EL NEGOCIO ---------- */}
       {about && (
@@ -591,14 +610,14 @@ function OfferCard({ offer, primary, template, whatsapp, businessName, featured,
         color: textColor,
       }}
     >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          paddingTop: '62%',
-          background: `url(${img}) center/cover no-repeat, #e2e8f0`,
-        }}
-      >
+      <div className="sm-offer-img-wrap">
+        <img
+          src={img}
+          alt={offer.title || 'Oferta'}
+          className="sm-offer-img"
+          loading="lazy"
+          draggable={false}
+        />
         {featured && (
           <span
             style={{
@@ -612,6 +631,7 @@ function OfferCard({ offer, primary, template, whatsapp, businessName, featured,
               padding: '6px 10px',
               borderRadius: 999,
               letterSpacing: 0.3,
+              zIndex: 2,
             }}
           >
             ⭐ Destacada
@@ -744,62 +764,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     width: '100%',
-  },
-  hero: {
-    position: 'relative',
-    width: '100%',
-    minHeight: 'min(560px, 70vh)',
-    color: '#fff',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'flex-end',
-  },
-  heroBg: {
-    position: 'absolute',
-    inset: 0,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    zIndex: 0,
-  },
-  heroInner: {
-    position: 'relative',
-    zIndex: 1,
-    width: '100%',
-    padding: '40px 20px 56px 20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 18,
-  },
-  logoCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: '50%',
-    border: '4px solid #fff',
-    boxShadow: '0 10px 28px rgba(0,0,0,0.25)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  heroTitle: {
-    margin: '14px 0 0 0',
-    fontSize: 'clamp(30px, 6vw, 52px)',
-    fontWeight: 900,
-    lineHeight: 1.05,
-    letterSpacing: -0.5,
-    textShadow: '0 2px 12px rgba(0,0,0,0.35)',
-  },
-  heroHeadline: {
-    margin: '6px 0 0 0',
-    fontSize: 'clamp(15px, 2vw, 20px)',
-    maxWidth: 720,
-    opacity: 0.95,
-    textShadow: '0 1px 8px rgba(0,0,0,0.3)',
-  },
-  heroLoc: {
-    margin: '4px 0 0 0',
-    fontSize: 14,
-    opacity: 0.9,
+    overflowX: 'hidden',
   },
   card: {
     padding: 24,
@@ -842,6 +807,8 @@ const styles = {
 const globalCss = `
 @keyframes sm-spin { to { transform: rotate(360deg); } }
 
+* { box-sizing: border-box; }
+
 .sm-container {
   max-width: 1180px;
   margin: 0 auto;
@@ -856,21 +823,147 @@ const globalCss = `
   padding-bottom: 8px;
 }
 
+/* ---------- HERO ---------- */
+.sm-hero {
+  position: relative;
+  width: 100%;
+  height: clamp(280px, 45vw, 420px);
+  max-height: 520px;
+  overflow: hidden;
+  color: #fff;
+  display: flex;
+  align-items: flex-end;
+  isolation: isolate;
+}
+
+.sm-hero-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.sm-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.sm-hero-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.sm-hero-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding-top: 24px;
+  padding-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sm-hero-top { display: flex; }
+
 .sm-chip {
   display: inline-block;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
+.sm-hero-title {
+  margin: 0;
+  font-size: clamp(26px, 5vw, 46px);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.45);
+  color: #fff;
+}
+
+.sm-hero-headline {
+  margin: 4px 0 0 0;
+  font-size: clamp(14px, 1.8vw, 18px);
+  max-width: 720px;
+  opacity: 0.95;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+  color: #fff;
+}
+
+.sm-hero-loc {
+  margin: 2px 0 0 0;
+  font-size: 14px;
+  opacity: 0.92;
+  color: #fff;
+}
+
+.sm-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* ---------- LOGO sobre el hero ---------- */
+.sm-logo-wrap {
+  position: relative;
+  margin-top: -50px;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.sm-logo {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sm-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ---------- BOTONES ---------- */
 .sm-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 18px;
+  padding: 11px 18px;
   border-radius: 12px;
   font-weight: 700;
   font-size: 15px;
@@ -883,13 +976,15 @@ const globalCss = `
 .sm-btn:hover { transform: translateY(-1px); opacity: .95; }
 .sm-btn:active { transform: translateY(0); }
 
-.sm-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
+.sm-btn-ghost {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
+/* ---------- GRIDS ---------- */
 .sm-grid-2 {
   display: grid;
   grid-template-columns: 1fr;
@@ -901,22 +996,56 @@ const globalCss = `
   gap: 20px;
 }
 
+/* ---------- OFERTA CARD ---------- */
+.sm-offer-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.sm-offer-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
 .sm-offer-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
 }
 
+/* ---------- BREAKPOINTS ---------- */
 @media (min-width: 640px) {
   .sm-grid-2 { grid-template-columns: 1fr 1fr; }
   .sm-grid-3 { grid-template-columns: 1fr 1fr; }
 }
 
 @media (min-width: 980px) {
+  .sm-hero {
+    height: clamp(420px, 42vw, 520px);
+  }
+  .sm-hero-inner {
+    padding-top: 32px;
+    padding-bottom: 44px;
+  }
   .sm-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .sm-hero-inner { padding: 60px 24px 72px 24px !important; }
+  .sm-logo {
+    width: 120px;
+    height: 120px;
+  }
+  .sm-logo-wrap {
+    margin-top: -60px;
+  }
 }
 
 @media (max-width: 480px) {
   .sm-btn { width: 100%; }
+  .sm-hero-actions .sm-btn { flex: 1 1 100%; }
 }
 `
