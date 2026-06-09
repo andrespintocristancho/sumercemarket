@@ -33,8 +33,9 @@ sumercemarket/
 │       ├── context/
 │       └── pages/
 ├── supabase/
-│   ├── schema.sql              # Esquema SQL completo + RLS
-│   └── business-profile.sql    # Columnas extra de "negocio" en profiles
+│   ├── schema.sql                # Esquema SQL completo + RLS
+│   ├── business-profile.sql      # Columnas extra de "negocio" en profiles
+│   └── business-templates.sql    # Columnas de plantilla pública del vendedor
 ├── .gitignore
 └── README.md
 ```
@@ -84,8 +85,73 @@ Estas dos claves son **públicas** (anon key); la seguridad real la garantizan l
    - `offer_images`
    - `contact_events`
 6. Abre [`supabase/business-profile.sql`](./supabase/business-profile.sql), pégalo en otro **New query** y ejecútalo. Añadirá a `profiles` las columnas de negocio (`business_name`, `business_slug`, etc.). Es idempotente.
+7. Abre [`supabase/business-templates.sql`](./supabase/business-templates.sql), pégalo en otro **New query** y ejecútalo. Añadirá a `profiles` las columnas de **plantilla pública del vendedor** (`business_template`, `business_headline`, `business_about`, `business_schedule`, `business_primary_color`) y el CHECK constraint que valida los valores permitidos. También es idempotente.
 
 El mismo script habilita **RLS** en todas las tablas y crea las políticas básicas (ver sección "Modelo de datos" más abajo).
+
+#### 3.1. Ejecutar `business-templates.sql`
+
+Este script añade soporte para **plantillas profesionales** en la página pública del vendedor (`/seller/:slug`). No toca login, ni RLS, ni otras tablas.
+
+1. En Supabase, ve a **SQL Editor → New query**.
+2. Abre [`supabase/business-templates.sql`](./supabase/business-templates.sql) en tu editor.
+3. Copia **todo** su contenido y pégalo en el SQL Editor.
+4. Pulsa **Run**. Debes ver `Success. No rows returned`.
+5. Verifica las columnas nuevas en `profiles` (ver más abajo "Verificar las columnas nuevas de plantilla").
+
+Columnas que añade a `profiles`:
+
+| Columna | Tipo | Default | Notas |
+|---|---|---|---|
+| `business_template` | `text` | `'store'` | Plantilla visual. Validada por CHECK. |
+| `business_headline` | `text` | — | Titular corto del negocio. |
+| `business_about` | `text` | — | Texto largo "sobre el negocio". |
+| `business_schedule` | `text` | — | Horario de atención (texto libre). |
+| `business_primary_color` | `text` | `'#2563eb'` | Color primario (HEX) de la plantilla. |
+
+Valores permitidos para `business_template` (CHECK constraint `profiles_business_template_check`):
+
+- `store`
+- `fashion`
+- `beauty`
+- `health`
+- `gym`
+- `vehicles`
+- `food`
+- `services`
+
+#### 3.2. Verificar las columnas nuevas de plantilla
+
+En **SQL Editor → New query**, ejecuta:
+
+```sql
+select column_name, data_type, column_default
+  from information_schema.columns
+ where table_schema = 'public'
+   and table_name   = 'profiles'
+   and column_name in (
+     'business_template',
+     'business_headline',
+     'business_about',
+     'business_schedule',
+     'business_primary_color'
+   )
+ order by column_name;
+```
+
+Deberías ver las 5 filas. `business_template` debe tener `column_default = 'store'::text` y `business_primary_color` debe tener `column_default = '#2563eb'::text`.
+
+Para comprobar el CHECK:
+
+```sql
+select conname, pg_get_constraintdef(oid)
+  from pg_constraint
+ where conname = 'profiles_business_template_check';
+```
+
+Debe devolver una fila con el `CHECK` listando los 8 valores permitidos.
+
+También puedes verificarlo desde la UI en **Table Editor → `profiles` → Columns**: ahí aparecerán las 5 nuevas columnas con sus tipos y valores por defecto.
 
 ### 4. Configurar autenticación
 
@@ -162,7 +228,7 @@ En `frontend/src/pages/BusinessProfile.jsx` (función `optimizeImage`):
 
 ## Modelo de datos
 
-Todas las tablas viven en el esquema `public` y están definidas en [`supabase/schema.sql`](./supabase/schema.sql). Las columnas de **negocio** dentro de `profiles` se añaden con [`supabase/business-profile.sql`](./supabase/business-profile.sql). El esquema coincide **exactamente** con los campos que usa el frontend actual: no se usan `municipality`, ni `is_active`, ni `category_id`, ni una tabla `categories`, ni `business_category`, ni `business_phone`.
+Todas las tablas viven en el esquema `public` y están definidas en [`supabase/schema.sql`](./supabase/schema.sql). Las columnas de **negocio** dentro de `profiles` se añaden con [`supabase/business-profile.sql`](./supabase/business-profile.sql) y las columnas de **plantilla pública** con [`supabase/business-templates.sql`](./supabase/business-templates.sql). El esquema coincide **exactamente** con los campos que usa el frontend actual: no se usan `municipality`, ni `is_active`, ni `category_id`, ni una tabla `categories`, ni `business_category`, ni `business_phone`.
 
 ### `profiles`
 
@@ -185,6 +251,11 @@ Todas las tablas viven en el esquema `public` y están definidas en [`supabase/s
 | `business_address` | `text` | Dirección del negocio. |
 | `business_department` | `text` | Departamento del negocio. |
 | `business_city` | `text` | Ciudad/municipio del negocio. |
+| `business_template` | `text` | Plantilla visual de la página pública. Default `'store'`. CHECK: `store \| fashion \| beauty \| health \| gym \| vehicles \| food \| services`. |
+| `business_headline` | `text` | Titular corto destacado del negocio. |
+| `business_about` | `text` | Texto largo "sobre el negocio". |
+| `business_schedule` | `text` | Horario de atención (texto libre). |
+| `business_primary_color` | `text` | Color primario (HEX) de la plantilla. Default `'#2563eb'`. |
 
 > ⚠️ El frontend (`BusinessProfile.jsx`) **solo lee y escribe estas columnas** de negocio. No usa `business_category` ni `business_phone`.
 
@@ -233,6 +304,7 @@ Todas las tablas viven en el esquema `public` y están definidas en [`supabase/s
 
 - `profiles(department)`, `profiles(city)`, `profiles(role)`
 - `profiles(business_slug)` único cuando no es NULL, `profiles(business_department)`, `profiles(business_city)`
+- `profiles(business_template)` (creado por `business-templates.sql`)
 - `offers(user_id)`, `offers(status)`, `offers(category)`, `offers(department)`, `offers(city)`, `offers(created_at desc)`
 - `offer_images(offer_id)`, `offer_images(offer_id, position)`
 - `contact_events(offer_id)`, `contact_events(contacter_id)`, `contact_events(created_at desc)`
