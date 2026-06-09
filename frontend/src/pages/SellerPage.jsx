@@ -1,1052 +1,467 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "../services/supabaseClient";
 
 /**
- * SellerPage - Mini sitio web profesional del vendedor
- * Ruta: /seller/:slug
+ * SellerPage
+ * Mini web pública premium del vendedor:
+ *  - Hero con portada, logo y CTA
+ *  - Sobre el negocio
+ *  - Servicios / Lo que ofrecemos (cards según business_template)
+ *  - Horario
+ *  - Ubicación
+ *  - Ofertas destacadas
+ *  - Todas las ofertas activas
+ *  - CTA final a WhatsApp
  *
- * Lee de profiles:
- *  business_slug, business_template, business_headline, business_about,
- *  business_schedule, business_primary_color, business_name, business_logo_url,
- *  business_cover_url, business_whatsapp, business_address, business_department,
- *  business_city
- *
- * Plantillas soportadas:
- *  store, fashion, beauty, health, gym, vehicles, food, services
- *
- * Ofertas: tabla `offers` filtrada por `user_id = profile.id` y `status = 'active'`.
- * Detalle de oferta en ruta `/offers/:id`.
+ * Color principal: business_primary_color
+ * Animaciones: fade, slide y hover.
  */
 
-// ---------- Plantillas visuales ----------
-const TEMPLATES = {
-  store: {
-    label: 'Tienda',
-    emoji: '🛍️',
-    fallbackColor: '#2563eb',
-    heroGradient: 'linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.78) 100%)',
-    heroFallback: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-    bg: '#f8fafc',
-    accentSoft: '#eff6ff',
-    font: "'Inter', system-ui, -apple-system, sans-serif",
-    radius: '16px',
-  },
-  fashion: {
-    label: 'Moda',
-    emoji: '👗',
-    fallbackColor: '#db2777',
-    heroGradient: 'linear-gradient(180deg, rgba(30,0,20,0.25) 0%, rgba(30,0,20,0.75) 100%)',
-    heroFallback: 'linear-gradient(135deg, #831843 0%, #db2777 100%)',
-    bg: '#fdf2f8',
-    accentSoft: '#fce7f3',
-    font: "'Playfair Display', 'Georgia', serif",
-    radius: '4px',
-  },
-  beauty: {
-    label: 'Belleza',
-    emoji: '💄',
-    fallbackColor: '#c026d3',
-    heroGradient: 'linear-gradient(180deg, rgba(80,7,76,0.3) 0%, rgba(80,7,76,0.78) 100%)',
-    heroFallback: 'linear-gradient(135deg, #86198f 0%, #e879f9 100%)',
-    bg: '#fdf4ff',
-    accentSoft: '#fae8ff',
-    font: "'Poppins', system-ui, sans-serif",
-    radius: '24px',
-  },
-  health: {
-    label: 'Salud',
-    emoji: '🩺',
-    fallbackColor: '#0ea5e9',
-    heroGradient: 'linear-gradient(180deg, rgba(7,89,133,0.3) 0%, rgba(7,89,133,0.8) 100%)',
-    heroFallback: 'linear-gradient(135deg, #075985 0%, #0ea5e9 100%)',
-    bg: '#f0f9ff',
-    accentSoft: '#e0f2fe',
-    font: "'Inter', system-ui, sans-serif",
-    radius: '12px',
-  },
-  gym: {
-    label: 'Fitness',
-    emoji: '💪',
-    fallbackColor: '#f97316',
-    heroGradient: 'linear-gradient(180deg, rgba(20,20,20,0.35) 0%, rgba(20,20,20,0.85) 100%)',
-    heroFallback: 'linear-gradient(135deg, #1f2937 0%, #f97316 100%)',
-    bg: '#0f172a',
-    accentSoft: '#1e293b',
-    font: "'Bebas Neue', 'Inter', sans-serif",
-    radius: '8px',
-    dark: true,
-  },
-  vehicles: {
-    label: 'Vehículos',
-    emoji: '🚗',
-    fallbackColor: '#334155',
-    heroGradient: 'linear-gradient(180deg, rgba(2,6,23,0.4) 0%, rgba(2,6,23,0.85) 100%)',
-    heroFallback: 'linear-gradient(135deg, #0f172a 0%, #475569 100%)',
-    bg: '#f1f5f9',
-    accentSoft: '#e2e8f0',
-    font: "'Montserrat', system-ui, sans-serif",
-    radius: '6px',
-  },
-  food: {
-    label: 'Comida',
-    emoji: '🍔',
-    fallbackColor: '#dc2626',
-    heroGradient: 'linear-gradient(180deg, rgba(69,10,10,0.3) 0%, rgba(69,10,10,0.8) 100%)',
-    heroFallback: 'linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%)',
-    bg: '#fef2f2',
-    accentSoft: '#fee2e2',
-    font: "'Nunito', system-ui, sans-serif",
-    radius: '20px',
-  },
-  services: {
-    label: 'Servicios',
-    emoji: '🛠️',
-    fallbackColor: '#0d9488',
-    heroGradient: 'linear-gradient(180deg, rgba(19,78,74,0.3) 0%, rgba(19,78,74,0.8) 100%)',
-    heroFallback: 'linear-gradient(135deg, #134e4a 0%, #0d9488 100%)',
-    bg: '#f0fdfa',
-    accentSoft: '#ccfbf1',
-    font: "'Inter', system-ui, sans-serif",
-    radius: '14px',
-  },
+const TEMPLATE_SERVICES = {
+  fashion: [
+    { icon: "👗", title: "Colecciones nuevas", desc: "Prendas y accesorios de temporada." },
+    { icon: "✂️", title: "Arreglos a medida", desc: "Ajustes y confección personalizada." },
+    { icon: "🛍️", title: "Asesoría de estilo", desc: "Te ayudamos a elegir tu look ideal." },
+    { icon: "🚚", title: "Envíos a domicilio", desc: "Recibe tu pedido en la puerta de tu casa." },
+  ],
+  beauty: [
+    { icon: "💅", title: "Manicure y pedicure", desc: "Cuidado y diseño profesional." },
+    { icon: "💇‍♀️", title: "Cortes y peinados", desc: "Estilo a la última tendencia." },
+    { icon: "✨", title: "Tratamientos faciales", desc: "Limpieza y rejuvenecimiento." },
+    { icon: "💄", title: "Maquillaje", desc: "Para eventos y ocasiones especiales." },
+  ],
+  health: [
+    { icon: "🩺", title: "Consultas", desc: "Atención profesional personalizada." },
+    { icon: "💊", title: "Tratamientos", desc: "Planes adaptados a tu necesidad." },
+    { icon: "🧘", title: "Bienestar", desc: "Acompañamiento integral." },
+    { icon: "📅", title: "Agenda tu cita", desc: "Horarios flexibles." },
+  ],
+  gym: [
+    { icon: "🏋️", title: "Entrenamiento", desc: "Rutinas guiadas para todo nivel." },
+    { icon: "🥗", title: "Nutrición", desc: "Planes alimenticios personalizados." },
+    { icon: "🤸", title: "Clases grupales", desc: "Energía y motivación en equipo." },
+    { icon: "📈", title: "Seguimiento", desc: "Mide tu progreso real." },
+  ],
+  vehicles: [
+    { icon: "🚗", title: "Venta", desc: "Vehículos seleccionados y revisados." },
+    { icon: "🔧", title: "Mecánica", desc: "Mantenimiento y reparaciones." },
+    { icon: "🛞", title: "Repuestos", desc: "Originales y garantizados." },
+    { icon: "📄", title: "Trámites", desc: "Te asesoramos en todo el proceso." },
+  ],
+  food: [
+    { icon: "🍽️", title: "Menú del día", desc: "Platos frescos y caseros." },
+    { icon: "🍔", title: "Para llevar", desc: "Empaque listo para disfrutar." },
+    { icon: "🛵", title: "Domicilios", desc: "Lo llevamos hasta tu puerta." },
+    { icon: "🎉", title: "Eventos", desc: "Servicio para celebraciones." },
+  ],
+  services: [
+    { icon: "🛠️", title: "Servicios técnicos", desc: "Soluciones rápidas y confiables." },
+    { icon: "📞", title: "Atención personalizada", desc: "Te escuchamos y asesoramos." },
+    { icon: "⏱️", title: "Respuesta rápida", desc: "Tiempo de respuesta corto." },
+    { icon: "💼", title: "Profesionales", desc: "Equipo con experiencia." },
+  ],
+  store: [
+    { icon: "🛒", title: "Variedad de productos", desc: "Encuentra todo en un solo lugar." },
+    { icon: "💳", title: "Pagos seguros", desc: "Múltiples medios de pago." },
+    { icon: "🚚", title: "Envíos", desc: "A toda la ciudad." },
+    { icon: "🤝", title: "Atención cercana", desc: "Te ayudamos a elegir lo mejor." },
+  ],
+};
+
+function hexToRgba(hex, alpha = 1) {
+  if (!hex) return `rgba(37,99,235,${alpha})`;
+  const h = hex.replace("#", "");
+  const bigint = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
-const getTemplate = (key) => TEMPLATES[key] || TEMPLATES.store
-
-// ---------- Utilidades ----------
-const formatCOP = (value) => {
-  const n = Number(value || 0)
-  try {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(n)
-  } catch {
-    return `$${n.toLocaleString('es-CO')}`
-  }
-}
-
-const sanitizePhone = (phone) => String(phone || '').replace(/[^\d]/g, '')
-
-const buildWhatsAppLink = (phone, message) => {
-  const p = sanitizePhone(phone)
-  if (!p) return '#'
-  const text = encodeURIComponent(message || 'Hola, vi tu tienda en SumercéMarket.')
-  return `https://wa.me/${p}?text=${text}`
-}
-
-// ---------- Componente ----------
 export default function SellerPage() {
-  const { slug } = useParams()
-  const [profile, setProfile] = useState(null)
-  const [offers, setOffers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
+  const { slug } = useParams();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [offers, setOffers] = useState([]);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    let cancelled = false
+    (async () => {
+      setLoading(true);
+      const { data: prof, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("business_slug", slug)
+        .maybeSingle();
 
-    const load = async () => {
-      setLoading(true)
-      setError('')
-
-      try {
-        // 1) Buscar perfil por business_slug
-        const { data: prof, error: profErr } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('business_slug', slug)
-          .maybeSingle()
-
-        if (profErr) throw profErr
-        if (!prof) {
-          if (!cancelled) {
-            setProfile(null)
-            setLoading(false)
-          }
-          return
-        }
-
-        // 2) Ofertas activas del vendedor (offers.user_id = profile.id)
-        const { data: offs, error: offErr } = await supabase
-          .from('offers')
-          .select('*')
-          .eq('user_id', prof.id)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-
-        if (offErr) throw offErr
-
-        if (!cancelled) {
-          setProfile(prof)
-          setOffers(offs || [])
-          setLoading(false)
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e.message || 'Error cargando la tienda')
-          setLoading(false)
-        }
+      if (error || !prof) {
+        setNotFound(true);
+        setLoading(false);
+        return;
       }
-    }
+      setProfile(prof);
 
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [slug])
+      const { data: offs } = await supabase
+        .from("offers")
+        .select("*")
+        .eq("user_id", prof.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
 
-  const template = useMemo(
-    () => getTemplate(profile?.business_template),
-    [profile?.business_template]
-  )
+      setOffers(offs || []);
+      setLoading(false);
+    })();
+  }, [slug]);
 
-  const primary = profile?.business_primary_color || template.fallbackColor
+  const primary = profile?.business_primary_color || "#2563eb";
+  const services = useMemo(() => TEMPLATE_SERVICES[profile?.business_template] || TEMPLATE_SERVICES.store, [profile]);
+  const featured = useMemo(() => offers.slice(0, 3), [offers]);
+  const servicesList = useMemo(() => {
+    if (!profile?.business_services) return [];
+    return profile.business_services.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [profile]);
 
-  const featured = useMemo(() => offers.slice(0, 3), [offers])
-  const rest = useMemo(() => offers.slice(3), [offers])
-
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
-  const businessName = profile?.business_name || profile?.full_name || 'Mi negocio'
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setCopied(false)
-    }
+  function waLink(text = "") {
+    if (!profile?.business_whatsapp) return null;
+    const msg = encodeURIComponent(text || `Hola ${profile.business_name}, vi tu sitio y me interesa más información.`);
+    return `https://wa.me/${profile.business_whatsapp}?text=${msg}`;
   }
 
-  const handleShare = async () => {
-    const data = {
-      title: businessName,
-      text: profile?.business_headline || `Visita ${businessName} en SumercéMarket`,
-      url: shareUrl,
-    }
-    try {
-      if (navigator.share) {
-        await navigator.share(data)
-      } else {
-        await handleCopy()
-      }
-    } catch {
-      /* cancelado por el usuario */
-    }
-  }
-
-  // ---------- Estados base ----------
   if (loading) {
     return (
-      <div style={styles.centerScreen}>
-        <div style={styles.spinner} />
-        <p style={{ color: '#64748b', marginTop: 12 }}>Cargando tienda…</p>
+      <div className="sp-loading">
+        <div className="sp-spinner" />
+        <p>Cargando…</p>
+        <style>{styles("#2563eb")}</style>
       </div>
-    )
+    );
   }
 
-  if (error) {
+  if (notFound || !profile) {
     return (
-      <div style={styles.centerScreen}>
-        <h2 style={{ margin: 0, color: '#0f172a' }}>Ups</h2>
-        <p style={{ color: '#64748b' }}>{error}</p>
-        <Link to="/" style={styles.linkBtn}>Volver al inicio</Link>
+      <div className="sp-notfound">
+        <h1>😕 Negocio no encontrado</h1>
+        <p>El enlace que buscas no existe o fue cambiado.</p>
+        <a href="/" className="sp-btn sp-btn-primary">Volver al inicio</a>
+        <style>{styles("#2563eb")}</style>
       </div>
-    )
+    );
   }
-
-  if (!profile) {
-    return (
-      <div style={styles.centerScreen}>
-        <div style={{ fontSize: 56 }}>🔎</div>
-        <h2 style={{ margin: '8px 0', color: '#0f172a' }}>Tienda no encontrada</h2>
-        <p style={{ color: '#64748b', maxWidth: 380, textAlign: 'center' }}>
-          No encontramos una tienda con el enlace <strong>/{slug}</strong>.
-        </p>
-        <Link to="/" style={styles.linkBtn}>Volver al inicio</Link>
-      </div>
-    )
-  }
-
-  const cover = profile.business_cover_url
-  const logo = profile.business_logo_url
-  const headline = profile.business_headline
-  const about = profile.business_about
-  const schedule = profile.business_schedule
-  const address = profile.business_address
-  const department = profile.business_department
-  const city = profile.business_city
-  const whatsapp = profile.business_whatsapp
-
-  const locationText = [address, city, department].filter(Boolean).join(', ')
-
-  const pageBg = template.dark ? '#0f172a' : template.bg
-  const textOnBg = template.dark ? '#f8fafc' : '#0f172a'
-  const subText = template.dark ? '#94a3b8' : '#475569'
-  const cardBg = template.dark ? '#1e293b' : '#ffffff'
 
   return (
-    <div style={{ ...styles.page, background: pageBg, color: textOnBg, fontFamily: template.font }}>
-      {/* Inyectamos estilos responsive y animaciones */}
-      <style>{globalCss}</style>
+    <div className="sp-wrap">
+      <style>{styles(primary)}</style>
 
-      {/* ---------- HERO ---------- */}
-      <header className="sm-hero">
-        {/* Capa 1: Imagen de portada o fallback degradado */}
-        <div
-          className="sm-hero-media"
-          style={{
-            background: !cover ? template.heroFallback : '#0f172a',
-          }}
-        >
-          {cover && (
-            <img
-              src={cover}
-              alt={`Portada de ${businessName}`}
-              className="sm-hero-img"
-              loading="eager"
-              draggable={false}
-            />
-          )}
-          {/* Capa 2: Overlay degradado oscuro para legibilidad del texto */}
-          <div
-            className="sm-hero-overlay"
-            style={{ background: template.heroGradient }}
-          />
-        </div>
-
-        {/* Capa 3: Contenido del hero */}
-        <div className="sm-container sm-hero-inner">
-          <div className="sm-hero-top">
-            <span className="sm-chip">
-              {template.emoji} {template.label}
-            </span>
+      {/* HERO PREMIUM */}
+      <header
+        className="sp-hero"
+        style={{
+          backgroundImage: `linear-gradient(135deg, ${hexToRgba(primary, .85)}, rgba(15,23,42,.75)), url(${profile.cover_url || ""})`,
+        }}
+      >
+        <div className="sp-hero-inner">
+          <div className="sp-hero-logo" style={{ borderColor: primary }}>
+            {profile.logo_url
+              ? <img src={profile.logo_url} alt={profile.business_name} />
+              : <span>🏪</span>}
           </div>
-
-          <div className="sm-hero-main">
-            <h1 className="sm-hero-title">{businessName}</h1>
-
-            {headline && <p className="sm-hero-headline">{headline}</p>}
-
-            {locationText && <p className="sm-hero-loc">📍 {locationText}</p>}
-
-            <div className="sm-hero-actions">
-              {whatsapp && (
-                <a
-                  className="sm-btn"
-                  href={buildWhatsAppLink(whatsapp, `Hola ${businessName}, vi tu tienda en SumercéMarket`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ background: '#25D366', color: '#fff' }}
-                >
-                  💬 WhatsApp
-                </a>
-              )}
-              <button
-                className="sm-btn sm-btn-ghost"
-                onClick={handleCopy}
-                type="button"
-              >
-                {copied ? '✅ Copiado' : '🔗 Copiar link'}
-              </button>
-              <button
-                className="sm-btn sm-btn-ghost"
-                onClick={handleShare}
-                type="button"
-              >
-                📤 Compartir tienda
-              </button>
-            </div>
+          <h1 className="sp-fade-up">{profile.business_name}</h1>
+          {profile.business_description && (
+            <p className="sp-hero-desc sp-fade-up sp-delay-1">{profile.business_description}</p>
+          )}
+          <div className="sp-hero-cta sp-fade-up sp-delay-2">
+            {waLink() && (
+              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-whats">
+                📱 Escríbenos por WhatsApp
+              </a>
+            )}
+            <a href="#ofertas" className="sp-btn sp-btn-outline-light">Ver ofertas</a>
           </div>
         </div>
       </header>
 
-      {/* ---------- LOGO CIRCULAR sobre el hero ---------- */}
-      <div className="sm-container sm-logo-wrap">
-        <div
-          className="sm-logo"
-          style={{
-            borderColor: '#ffffff',
-            background: logo ? '#fff' : '#fff',
-          }}
-          aria-label={`Logo de ${businessName}`}
-        >
-          {logo ? (
-            <img
-              src={logo}
-              alt={`Logo de ${businessName}`}
-              className="sm-logo-img"
-              draggable={false}
-            />
-          ) : (
-            <span style={{ color: primary, fontWeight: 800, fontSize: 40 }}>
-              {businessName.charAt(0).toUpperCase()}
-            </span>
-          )}
+      {/* SOBRE EL NEGOCIO */}
+      <section className="sp-section sp-slide-up">
+        <div className="sp-section-head">
+          <h2>Sobre nosotros</h2>
+          <span className="sp-divider" />
         </div>
-      </div>
+        <p className="sp-about">
+          {profile.business_description || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
+        </p>
+      </section>
 
-      {/* ---------- SOBRE EL NEGOCIO ---------- */}
-      {about && (
-        <section className="sm-container sm-section">
-          <SectionTitle color={primary} dark={template.dark}>Sobre el negocio</SectionTitle>
-          <div
-            className="sm-about-card"
-            style={{
-              ...styles.card,
-              background: cardBg,
-              borderRadius: template.radius,
-              color: textOnBg,
-            }}
-          >
-            <p style={{ margin: 0, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{about}</p>
-          </div>
-        </section>
-      )}
+      {/* SERVICIOS */}
+      <section className="sp-section sp-slide-up">
+        <div className="sp-section-head">
+          <h2>Lo que ofrecemos</h2>
+          <span className="sp-divider" />
+        </div>
+        <div className="sp-cards">
+          {services.map((s, i) => (
+            <article key={i} className="sp-card sp-card-service" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="sp-card-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>
+                {s.icon}
+              </div>
+              <h3>{s.title}</h3>
+              <p>{s.desc}</p>
+            </article>
+          ))}
+        </div>
 
-      {/* ---------- HORARIO Y UBICACIÓN ---------- */}
-      {(schedule || locationText) && (
-        <section className="sm-container sm-section">
-          <div className="sm-grid-2">
-            {schedule && (
-              <InfoCard
-                title="🕒 Horario"
-                primary={primary}
-                bg={cardBg}
-                radius={template.radius}
-                textColor={textOnBg}
-                subColor={subText}
-              >
-                <p style={{ margin: 0, whiteSpace: 'pre-line', lineHeight: 1.7 }}>{schedule}</p>
-              </InfoCard>
-            )}
-
-            {locationText && (
-              <InfoCard
-                title="📍 Ubicación"
-                primary={primary}
-                bg={cardBg}
-                radius={template.radius}
-                textColor={textOnBg}
-                subColor={subText}
-              >
-                <p style={{ margin: '0 0 12px 0', lineHeight: 1.6 }}>{locationText}</p>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationText)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: primary,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  Ver en Google Maps →
-                </a>
-              </InfoCard>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ---------- OFERTAS DESTACADAS ---------- */}
-      <section className="sm-container sm-section">
-        <SectionTitle color={primary} dark={template.dark}>
-          ✨ Ofertas destacadas
-        </SectionTitle>
-
-        {offers.length === 0 ? (
-          <EmptyOffers
-            primary={primary}
-            whatsapp={whatsapp}
-            businessName={businessName}
-            bg={cardBg}
-            radius={template.radius}
-            textColor={textOnBg}
-            subColor={subText}
-          />
-        ) : (
-          <div className="sm-grid-3">
-            {featured.map((o) => (
-              <OfferCard
-                key={o.id}
-                offer={o}
-                primary={primary}
-                template={template}
-                whatsapp={whatsapp}
-                businessName={businessName}
-                featured
-                bg={cardBg}
-                textColor={textOnBg}
-                subColor={subText}
-              />
+        {servicesList.length > 0 && (
+          <div className="sp-tags">
+            {servicesList.map((t, i) => (
+              <span key={i} className="sp-tag" style={{ borderColor: hexToRgba(primary, .35), color: primary }}>
+                ✓ {t}
+              </span>
             ))}
           </div>
         )}
       </section>
 
-      {/* ---------- TODAS LAS OFERTAS ---------- */}
-      {rest.length > 0 && (
-        <section className="sm-container sm-section">
-          <SectionTitle color={primary} dark={template.dark}>
-            Todas las ofertas
-          </SectionTitle>
-          <div className="sm-grid-3">
-            {rest.map((o) => (
-              <OfferCard
-                key={o.id}
-                offer={o}
-                primary={primary}
-                template={template}
-                whatsapp={whatsapp}
-                businessName={businessName}
-                bg={cardBg}
-                textColor={textOnBg}
-                subColor={subText}
-              />
+      {/* HORARIO Y UBICACIÓN */}
+      {(profile.business_schedule || profile.business_address || profile.business_phone) && (
+        <section className="sp-section sp-slide-up">
+          <div className="sp-info-grid">
+            {profile.business_schedule && (
+              <div className="sp-info-card">
+                <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>🕒</div>
+                <h3>Horario</h3>
+                <p>{profile.business_schedule}</p>
+              </div>
+            )}
+            {profile.business_address && (
+              <div className="sp-info-card">
+                <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>📍</div>
+                <h3>Ubicación</h3>
+                <p>{profile.business_address}</p>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.business_address)}`}
+                  target="_blank" rel="noreferrer"
+                  className="sp-link" style={{ color: primary }}
+                >
+                  Ver en Google Maps →
+                </a>
+              </div>
+            )}
+            {profile.business_phone && (
+              <div className="sp-info-card">
+                <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>📞</div>
+                <h3>Teléfono</h3>
+                <p><a href={`tel:${profile.business_phone}`} className="sp-link" style={{ color: primary }}>{profile.business_phone}</a></p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* OFERTAS DESTACADAS */}
+      {featured.length > 0 && (
+        <section className="sp-section sp-slide-up">
+          <div className="sp-section-head">
+            <h2>Ofertas destacadas</h2>
+            <span className="sp-divider" />
+          </div>
+          <div className="sp-cards">
+            {featured.map((o, i) => (
+              <OfferCard key={o.id} offer={o} primary={primary} delay={i * 80} waLink={waLink} featured />
             ))}
           </div>
         </section>
       )}
 
-      {/* ---------- FOOTER ---------- */}
-      <footer style={{ ...styles.footer, color: subText }}>
-        <div className="sm-container" style={{ textAlign: 'center', padding: '24px 16px' }}>
-          <p style={{ margin: 0, fontSize: 14 }}>
-            © {new Date().getFullYear()} {businessName} · Página creada con{' '}
-            <Link to="/" style={{ color: primary, fontWeight: 700, textDecoration: 'none' }}>
-              SumercéMarket
-            </Link>
-          </p>
+      {/* TODAS LAS OFERTAS */}
+      <section id="ofertas" className="sp-section sp-slide-up">
+        <div className="sp-section-head">
+          <h2>Todas nuestras ofertas</h2>
+          <span className="sp-divider" />
         </div>
+        {offers.length === 0 ? (
+          <div className="sp-empty">
+            <div className="sp-empty-icon">🛒</div>
+            <h3>Aún no hay ofertas activas</h3>
+            <p>Muy pronto publicaremos novedades. Escríbenos para conocer más.</p>
+            {waLink() && (
+              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary">
+                Contactar por WhatsApp
+              </a>
+            )}
+          </div>
+        ) : (
+          <div className="sp-cards">
+            {offers.map((o, i) => (
+              <OfferCard key={o.id} offer={o} primary={primary} delay={i * 60} waLink={waLink} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="sp-cta-final sp-slide-up" style={{ background: `linear-gradient(135deg, ${primary}, ${hexToRgba(primary, .75)})` }}>
+        <h2>¿Te interesa algo? Hablemos</h2>
+        <p>Estamos listos para atenderte por WhatsApp.</p>
+        {waLink() ? (
+          <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-whats sp-btn-lg">
+            📱 Escribir por WhatsApp
+          </a>
+        ) : (
+          <p className="sp-muted">El vendedor aún no ha configurado WhatsApp.</p>
+        )}
+      </section>
+
+      <footer className="sp-footer">
+        <p>© {new Date().getFullYear()} {profile.business_name}. Sitio creado con Sumercé Market.</p>
       </footer>
     </div>
-  )
+  );
 }
 
-// ---------- Subcomponentes ----------
-function SectionTitle({ children, color, dark }) {
-  return (
-    <div style={{ marginBottom: 20 }}>
-      <h2
-        style={{
-          margin: 0,
-          fontSize: 'clamp(22px, 3vw, 30px)',
-          fontWeight: 800,
-          color: dark ? '#f8fafc' : '#0f172a',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-block',
-            width: 6,
-            height: 28,
-            background: color,
-            borderRadius: 4,
-          }}
-        />
-        {children}
-      </h2>
-    </div>
-  )
-}
-
-function InfoCard({ title, children, primary, bg, radius, textColor, subColor }) {
-  return (
-    <div
-      style={{
-        background: bg,
-        borderRadius: radius,
-        padding: 24,
-        boxShadow: '0 4px 18px rgba(15,23,42,0.06)',
-        border: '1px solid rgba(15,23,42,0.06)',
-        color: textColor,
-      }}
-    >
-      <h3 style={{ margin: '0 0 12px 0', fontSize: 18, fontWeight: 700, color: primary }}>
-        {title}
-      </h3>
-      <div style={{ color: subColor, fontSize: 15 }}>{children}</div>
-    </div>
-  )
-}
-
-function OfferCard({ offer, primary, template, whatsapp, businessName, featured, bg, textColor, subColor }) {
-  const img =
-    offer.image_url ||
-    offer.cover_url ||
-    `https://placehold.co/600x400/${primary.replace('#', '')}/ffffff?text=${encodeURIComponent(
-      offer.title || 'Oferta'
-    )}`
-
-  const waLink = buildWhatsAppLink(
-    whatsapp,
-    `Hola ${businessName}, me interesa tu oferta: "${offer.title}"`
-  )
+function OfferCard({ offer, primary, delay = 0, waLink, featured = false }) {
+  const img = offer.image_url || offer.cover_url;
+  const price = offer.price != null ? offer.price : null;
+  const oldPrice = offer.old_price ?? offer.original_price ?? null;
+  const discount = oldPrice && price ? Math.round(((oldPrice - price) / oldPrice) * 100) : null;
 
   return (
-    <article
-      className="sm-offer-card"
-      style={{
-        background: bg,
-        borderRadius: template.radius,
-        overflow: 'hidden',
-        boxShadow: featured
-          ? '0 12px 30px rgba(15,23,42,0.12)'
-          : '0 4px 18px rgba(15,23,42,0.06)',
-        border: '1px solid rgba(15,23,42,0.06)',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'transform .2s ease, box-shadow .2s ease',
-        color: textColor,
-      }}
-    >
-      <div className="sm-offer-img-wrap">
-        <img
-          src={img}
-          alt={offer.title || 'Oferta'}
-          className="sm-offer-img"
-          loading="lazy"
-          draggable={false}
-        />
-        {featured && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 12,
-              left: 12,
-              background: primary,
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: 700,
-              padding: '6px 10px',
-              borderRadius: 999,
-              letterSpacing: 0.3,
-              zIndex: 2,
-            }}
-          >
-            ⭐ Destacada
-          </span>
+    <article className={`sp-card sp-card-offer ${featured ? "sp-card-featured" : ""}`} style={{ animationDelay: `${delay}ms` }}>
+      <div className="sp-offer-img" style={{ backgroundImage: img ? `url(${img})` : "linear-gradient(135deg,#e2e8f0,#cbd5e1)" }}>
+        {featured && <span className="sp-badge" style={{ background: primary }}>★ Destacada</span>}
+        {discount && discount > 0 && (
+          <span className="sp-badge sp-badge-disc">-{discount}%</span>
         )}
       </div>
-
-      <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-        <h3
-          style={{
-            margin: 0,
-            fontSize: 18,
-            fontWeight: 700,
-            lineHeight: 1.3,
-            color: textColor,
-          }}
-        >
-          {offer.title}
-        </h3>
-
-        {offer.description && (
-          <p
-            style={{
-              margin: 0,
-              color: subColor,
-              fontSize: 14,
-              lineHeight: 1.5,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {offer.description}
-          </p>
-        )}
-
-        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 22, fontWeight: 800, color: primary }}>
-            {formatCOP(offer.price)}
-          </span>
-          {offer.old_price && Number(offer.old_price) > Number(offer.price || 0) && (
-            <span style={{ fontSize: 13, color: '#94a3b8', textDecoration: 'line-through' }}>
-              {formatCOP(offer.old_price)}
+      <div className="sp-offer-body">
+        <h3>{offer.title || offer.name || "Oferta"}</h3>
+        {offer.description && <p className="sp-offer-desc">{offer.description}</p>}
+        <div className="sp-offer-price">
+          {price != null && (
+            <span className="sp-price" style={{ color: primary }}>
+              ${Number(price).toLocaleString()}
             </span>
           )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-          <Link
-            to={`/offers/${offer.id}`}
-            className="sm-btn"
-            style={{
-              background: primary,
-              color: '#fff',
-              flex: '1 1 auto',
-              textAlign: 'center',
-              textDecoration: 'none',
-            }}
-          >
-            Ver oferta
-          </Link>
-          {whatsapp && (
-            <a
-              className="sm-btn"
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                background: '#25D366',
-                color: '#fff',
-                flex: '1 1 auto',
-                textAlign: 'center',
-                textDecoration: 'none',
-              }}
-            >
-              💬 WhatsApp
-            </a>
+          {oldPrice && (
+            <span className="sp-price-old">${Number(oldPrice).toLocaleString()}</span>
           )}
         </div>
+        {waLink && waLink(`Hola, me interesa: ${offer.title || offer.name}`) && (
+          <a
+            href={waLink(`Hola, me interesa: ${offer.title || offer.name}`)}
+            target="_blank" rel="noreferrer"
+            className="sp-btn sp-btn-primary sp-btn-block"
+            style={{ background: primary }}
+          >
+            Lo quiero
+          </a>
+        )}
       </div>
     </article>
-  )
+  );
 }
 
-function EmptyOffers({ primary, whatsapp, businessName, bg, radius, textColor, subColor }) {
-  return (
-    <div
-      style={{
-        background: bg,
-        borderRadius: radius,
-        padding: '40px 24px',
-        textAlign: 'center',
-        border: `2px dashed ${primary}33`,
-        color: textColor,
-      }}
-    >
-      <div style={{ fontSize: 48, marginBottom: 8 }}>🛒</div>
-      <h3 style={{ margin: '0 0 8px 0', fontSize: 20, color: textColor }}>
-        Este negocio aún no tiene ofertas activas
-      </h3>
-      <p style={{ margin: '0 0 18px 0', color: subColor, maxWidth: 440, marginInline: 'auto' }}>
-        Puedes contactarlo por WhatsApp para conocer sus productos y servicios.
-      </p>
-      {whatsapp && (
-        <a
-          className="sm-btn"
-          href={buildWhatsAppLink(
-            whatsapp,
-            `Hola ${businessName}, vi tu tienda en SumercéMarket y quiero más información`
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            background: '#25D366',
-            color: '#fff',
-            textDecoration: 'none',
-            display: 'inline-block',
-          }}
-        >
-          💬 Contactar por WhatsApp
-        </a>
-      )}
-    </div>
-  )
+const styles = (primary) => `
+.sp-wrap{font-family:Inter,system-ui,-apple-system,sans-serif;color:#0f172a;background:#f8fafc;min-height:100vh}
+.sp-loading,.sp-notfound{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#475569;text-align:center;padding:24px}
+.sp-spinner{width:40px;height:40px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:${primary};animation:sp-spin 1s linear infinite}
+@keyframes sp-spin{to{transform:rotate(360deg)}}
+
+/* HERO */
+.sp-hero{position:relative;color:#fff;background-size:cover;background-position:center;padding:80px 20px 90px;text-align:center}
+.sp-hero-inner{max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:18px}
+.sp-hero-logo{width:120px;height:120px;border-radius:50%;background:#fff;border:5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:48px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.25);animation:sp-pop .6s ease-out both}
+.sp-hero-logo img{width:100%;height:100%;object-fit:cover}
+.sp-hero h1{font-size:42px;margin:0;letter-spacing:-.02em;text-shadow:0 4px 20px rgba(0,0,0,.25)}
+.sp-hero-desc{font-size:18px;max-width:680px;opacity:.95;margin:0;line-height:1.5}
+.sp-hero-cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:10px}
+@keyframes sp-pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+
+/* Animaciones */
+.sp-fade-up{animation:sp-fade-up .7s ease-out both}
+.sp-delay-1{animation-delay:.15s}
+.sp-delay-2{animation-delay:.3s}
+@keyframes sp-fade-up{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.sp-slide-up{animation:sp-slide .8s ease-out both}
+@keyframes sp-slide{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
+
+/* Botones */
+.sp-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;border:none;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .2s,box-shadow .25s,opacity .2s}
+.sp-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.sp-btn-primary{background:${primary};color:#fff}
+.sp-btn-whats{background:#25d366;color:#fff}
+.sp-btn-outline-light{background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.6);backdrop-filter:blur(6px)}
+.sp-btn-lg{padding:16px 32px;font-size:17px}
+.sp-btn-block{width:100%;justify-content:center;margin-top:12px}
+
+/* Secciones */
+.sp-section{max-width:1080px;margin:0 auto;padding:60px 20px}
+.sp-section-head{text-align:center;margin-bottom:34px}
+.sp-section-head h2{font-size:30px;margin:0;letter-spacing:-.01em}
+.sp-divider{display:block;width:60px;height:4px;border-radius:99px;background:${primary};margin:12px auto 0}
+.sp-about{max-width:760px;margin:0 auto;text-align:center;font-size:17px;line-height:1.7;color:#475569}
+
+/* Cards */
+.sp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
+.sp-card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.05);transition:transform .25s,box-shadow .25s;animation:sp-fade-up .6s ease-out both;overflow:hidden}
+.sp-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(15,23,42,.12)}
+.sp-card-service{padding:24px;text-align:center}
+.sp-card-service h3{margin:14px 0 6px;font-size:18px}
+.sp-card-service p{margin:0;color:#64748b;font-size:14px;line-height:1.5}
+.sp-card-icon{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto;transition:transform .3s}
+.sp-card:hover .sp-card-icon{transform:scale(1.08) rotate(-3deg)}
+
+/* Tags */
+.sp-tags{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:28px}
+.sp-tag{padding:8px 14px;border-radius:99px;border:1.5px solid;font-size:14px;font-weight:600;background:#fff;transition:transform .2s}
+.sp-tag:hover{transform:translateY(-2px)}
+
+/* Info grid */
+.sp-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.sp-info-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;text-align:center;transition:transform .25s,box-shadow .25s}
+.sp-info-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+.sp-info-icon{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 12px}
+.sp-info-card h3{margin:0 0 6px;font-size:17px}
+.sp-info-card p{margin:0 0 6px;color:#475569;font-size:14px;line-height:1.5}
+.sp-link{text-decoration:none;font-weight:600;font-size:14px}
+.sp-link:hover{text-decoration:underline}
+
+/* Ofertas */
+.sp-card-offer{display:flex;flex-direction:column}
+.sp-offer-img{position:relative;height:180px;background-size:cover;background-position:center}
+.sp-card-featured .sp-offer-img{height:210px}
+.sp-badge{position:absolute;top:12px;left:12px;color:#fff;font-size:12px;font-weight:700;padding:6px 12px;border-radius:99px;letter-spacing:.02em;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.sp-badge-disc{left:auto;right:12px;background:#ef4444}
+.sp-offer-body{padding:18px;display:flex;flex-direction:column;flex:1}
+.sp-offer-body h3{margin:0 0 6px;font-size:17px}
+.sp-offer-desc{margin:0 0 12px;color:#64748b;font-size:14px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sp-offer-price{display:flex;align-items:baseline;gap:10px;margin-top:auto}
+.sp-price{font-size:22px;font-weight:800}
+.sp-price-old{color:#94a3b8;text-decoration:line-through;font-size:14px}
+
+/* Estado vacío */
+.sp-empty{text-align:center;padding:60px 20px;background:#fff;border:1px dashed #cbd5e1;border-radius:18px}
+.sp-empty-icon{font-size:54px;margin-bottom:12px}
+.sp-empty h3{margin:0 0 6px;font-size:20px}
+.sp-empty p{margin:0 0 18px;color:#64748b}
+
+/* CTA final */
+.sp-cta-final{max-width:1080px;margin:20px auto 40px;border-radius:24px;padding:54px 24px;text-align:center;color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.15)}
+.sp-cta-final h2{margin:0 0 10px;font-size:30px}
+.sp-cta-final p{margin:0 0 22px;opacity:.95;font-size:17px}
+.sp-muted{opacity:.85;font-size:14px}
+
+/* Footer */
+.sp-footer{text-align:center;padding:28px 20px;color:#64748b;font-size:13px;border-top:1px solid #e5e7eb;background:#fff}
+
+/* Responsive */
+@media (max-width:720px){
+  .sp-hero{padding:60px 18px 70px}
+  .sp-hero h1{font-size:30px}
+  .sp-hero-desc{font-size:15px}
+  .sp-hero-logo{width:92px;height:92px;font-size:38px;border-width:4px}
+  .sp-section{padding:46px 16px}
+  .sp-section-head h2{font-size:24px}
+  .sp-cta-final{padding:40px 18px;margin:16px;border-radius:18px}
+  .sp-cta-final h2{font-size:22px}
 }
-
-// ---------- Estilos inline base ----------
-const styles = {
-  page: {
-    minHeight: '100vh',
-    width: '100%',
-    overflowX: 'hidden',
-  },
-  card: {
-    padding: 24,
-    boxShadow: '0 4px 18px rgba(15,23,42,0.06)',
-    border: '1px solid rgba(15,23,42,0.06)',
-  },
-  footer: {
-    borderTop: '1px solid rgba(15,23,42,0.08)',
-    marginTop: 32,
-  },
-  centerScreen: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    background: '#f8fafc',
-  },
-  spinner: {
-    width: 38,
-    height: 38,
-    border: '4px solid #e2e8f0',
-    borderTopColor: '#2563eb',
-    borderRadius: '50%',
-    animation: 'sm-spin 0.9s linear infinite',
-  },
-  linkBtn: {
-    marginTop: 16,
-    background: '#0f172a',
-    color: '#fff',
-    padding: '10px 18px',
-    borderRadius: 10,
-    textDecoration: 'none',
-    fontWeight: 600,
-  },
-}
-
-// ---------- CSS global responsive ----------
-const globalCss = `
-@keyframes sm-spin { to { transform: rotate(360deg); } }
-
-* { box-sizing: border-box; }
-
-.sm-container {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding-left: 20px;
-  padding-right: 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.sm-section {
-  padding-top: 40px;
-  padding-bottom: 8px;
-}
-
-/* ---------- HERO ---------- */
-.sm-hero {
-  position: relative;
-  width: 100%;
-  height: clamp(280px, 45vw, 420px);
-  max-height: 520px;
-  overflow: hidden;
-  color: #fff;
-  display: flex;
-  align-items: flex-end;
-  isolation: isolate;
-}
-
-.sm-hero-media {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  z-index: 0;
-}
-
-.sm-hero-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.sm-hero-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.sm-hero-inner {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  padding-top: 24px;
-  padding-bottom: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sm-hero-top { display: flex; }
-
-.sm-chip {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(255,255,255,0.18);
-  color: #fff;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.sm-hero-title {
-  margin: 0;
-  font-size: clamp(26px, 5vw, 46px);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.5px;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.45);
-  color: #fff;
-}
-
-.sm-hero-headline {
-  margin: 4px 0 0 0;
-  font-size: clamp(14px, 1.8vw, 18px);
-  max-width: 720px;
-  opacity: 0.95;
-  text-shadow: 0 1px 8px rgba(0,0,0,0.4);
-  color: #fff;
-}
-
-.sm-hero-loc {
-  margin: 2px 0 0 0;
-  font-size: 14px;
-  opacity: 0.92;
-  color: #fff;
-}
-
-.sm-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-/* ---------- LOGO sobre el hero ---------- */
-.sm-logo-wrap {
-  position: relative;
-  margin-top: -50px;
-  z-index: 5;
-  display: flex;
-  justify-content: flex-start;
-  padding-left: 20px;
-  padding-right: 20px;
-}
-
-.sm-logo {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: 4px solid #fff;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #fff;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.sm-logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-/* ---------- BOTONES ---------- */
-.sm-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 11px 18px;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 15px;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  transition: transform .15s ease, opacity .15s ease, box-shadow .15s ease;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-}
-.sm-btn:hover { transform: translateY(-1px); opacity: .95; }
-.sm-btn:active { transform: translateY(0); }
-
-.sm-btn-ghost {
-  background: rgba(255,255,255,0.15);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.4);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-/* ---------- GRIDS ---------- */
-.sm-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
-}
-.sm-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-/* ---------- OFERTA CARD ---------- */
-.sm-offer-img-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  background: #e2e8f0;
-}
-
-.sm-offer-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-}
-
-.sm-offer-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
-}
-
-/* ---------- BREAKPOINTS ---------- */
-@media (min-width: 640px) {
-  .sm-grid-2 { grid-template-columns: 1fr 1fr; }
-  .sm-grid-3 { grid-template-columns: 1fr 1fr; }
-}
-
-@media (min-width: 980px) {
-  .sm-hero {
-    height: clamp(420px, 42vw, 520px);
-  }
-  .sm-hero-inner {
-    padding-top: 32px;
-    padding-bottom: 44px;
-  }
-  .sm-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .sm-logo {
-    width: 120px;
-    height: 120px;
-  }
-  .sm-logo-wrap {
-    margin-top: -60px;
-  }
-}
-
-@media (max-width: 480px) {
-  .sm-btn { width: 100%; }
-  .sm-hero-actions .sm-btn { flex: 1 1 100%; }
-}
-`
+`;
