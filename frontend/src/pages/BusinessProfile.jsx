@@ -1,1020 +1,509 @@
-import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../services/supabaseClient";
 
-const BUCKET = 'business-assets'
+/**
+ * BusinessProfile
+ * - Perfil del negocio tipo Facebook (portada + logo).
+ * - Genera business_slug automáticamente desde business_name si está vacío.
+ * - Muestra URL pública en vivo: /seller/{business_slug}.
+ * - Botones: Ver mi web, Copiar link, Compartir por WhatsApp.
+ * - Valida que el slug sea único en la tabla `profiles`.
+ * - No pide URLs manuales para imágenes: usa Supabase Storage.
+ */
 
-// Plantillas disponibles para la mini web pública del vendedor.
-// Los valores DEBEN coincidir con el CHECK constraint
-// `profiles_business_template_check` definido en
-// `supabase/business-templates.sql`.
-const TEMPLATE_OPTIONS = [
-  { value: 'store',    label: 'Tienda general',          emoji: '🛍️' },
-  { value: 'fashion',  label: 'Moda / Ropa / Zapatos',   emoji: '👗' },
-  { value: 'beauty',   label: 'Belleza',                 emoji: '💄' },
-  { value: 'health',   label: 'Salud / Odontología',     emoji: '🩺' },
-  { value: 'gym',      label: 'Gym / Deportes',          emoji: '🏋️' },
-  { value: 'vehicles', label: 'Vehículos',               emoji: '🚗' },
-  { value: 'food',     label: 'Plaza / Alimentos',       emoji: '🥬' },
-  { value: 'services', label: 'Servicios',               emoji: '🛠️' },
-]
+const TEMPLATES = [
+  { value: "fashion", label: "Moda" },
+  { value: "beauty", label: "Belleza" },
+  { value: "health", label: "Salud" },
+  { value: "gym", label: "Gimnasio" },
+  { value: "vehicles", label: "Vehículos" },
+  { value: "food", label: "Comida" },
+  { value: "services", label: "Servicios" },
+  { value: "store", label: "Tienda" },
+];
 
-const DEFAULT_PRIMARY_COLOR = '#2563eb'
-
-// Lista única de columnas de perfil a leer/escribir.
-const PROFILE_COLUMNS = [
-  'business_name',
-  'business_slug',
-  'business_description',
-  'business_logo_url',
-  'business_cover_url',
-  'business_whatsapp',
-  'business_address',
-  'business_department',
-  'business_city',
-  'business_template',
-  'business_headline',
-  'business_about',
-  'business_schedule',
-  'business_primary_color',
-]
-
-// Genera un slug URL-safe a partir de un texto libre.
-function slugify(input) {
-  return (input || '')
+function slugify(text = "") {
+  return text
     .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60)
-}
-
-// Valida un color HEX (#rgb o #rrggbb). Si no es válido, devuelve el default.
-function normalizeHex(color) {
-  if (!color) return DEFAULT_PRIMARY_COLOR
-  const c = String(color).trim()
-  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)) return c
-  return DEFAULT_PRIMARY_COLOR
-}
-
-// Aplica los datos crudos de Supabase al estado local del formulario.
-function mapDbToState(data) {
-  return {
-    business_name: data?.business_name || '',
-    business_slug: data?.business_slug || '',
-    business_description: data?.business_description || '',
-    business_logo_url: data?.business_logo_url || '',
-    business_cover_url: data?.business_cover_url || '',
-    business_whatsapp: data?.business_whatsapp || '',
-    business_address: data?.business_address || '',
-    business_department: data?.business_department || '',
-    business_city: data?.business_city || '',
-    business_template: data?.business_template || 'store',
-    business_headline: data?.business_headline || '',
-    business_about: data?.business_about || '',
-    business_schedule: data?.business_schedule || '',
-    business_primary_color: normalizeHex(data?.business_primary_color),
-  }
-}
-
-// Optimiza una imagen en el navegador usando canvas.
-// Devuelve { blob, ext, mime } intentando WebP y haciendo fallback a JPG.
-async function optimizeImage(file, maxW, maxH, quality = 0.75) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-
-  const img = await new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = reject
-    image.src = dataUrl
-  })
-
-  // Escalar manteniendo aspecto, sin agrandar.
-  const ratio = Math.min(maxW / img.width, maxH / img.height, 1)
-  const targetW = Math.round(img.width * ratio)
-  const targetH = Math.round(img.height * ratio)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = targetW
-  canvas.height = targetH
-  const ctx = canvas.getContext('2d')
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(img, 0, 0, targetW, targetH)
-
-  // Intentar WebP
-  const webpBlob = await new Promise((resolve) =>
-    canvas.toBlob((b) => resolve(b), 'image/webp', quality)
-  )
-  if (webpBlob && webpBlob.size > 0) {
-    return { blob: webpBlob, ext: 'webp', mime: 'image/webp' }
-  }
-
-  // Fallback JPG
-  const jpgBlob = await new Promise((resolve) =>
-    canvas.toBlob((b) => resolve(b), 'image/jpeg', quality)
-  )
-  return { blob: jpgBlob, ext: 'jpg', mime: 'image/jpeg' }
-}
-
-// Asegura que exista una fila en `profiles` para este usuario.
-// Si no existe, la crea con id = user.id y role = 'user'.
-// Devuelve la fila final (existente o recién creada) o null si falla.
-async function ensureProfileRow(user) {
-  if (!user) return null
-
-  // 1) ¿Ya existe?
-  const { data: existing, error: selErr } = await supabase
-    .from('profiles')
-    .select(['id', ...PROFILE_COLUMNS].join(', '))
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (selErr) throw selErr
-  if (existing) return existing
-
-  // 2) Insertar fila mínima. Si el schema no acepta `role`, reintentamos sin él.
-  const baseRow = {
-    id: user.id,
-    business_template: 'store',
-    business_primary_color: DEFAULT_PRIMARY_COLOR,
-  }
-
-  let insertRes = await supabase
-    .from('profiles')
-    .insert({ ...baseRow, role: 'user' })
-    .select(['id', ...PROFILE_COLUMNS].join(', '))
-    .maybeSingle()
-
-  if (insertRes.error) {
-    const msg = insertRes.error.message || ''
-    // Si la columna `role` no existe o no acepta ese valor, reintentar sin role.
-    if (/role/i.test(msg) || insertRes.error.code === '42703') {
-      insertRes = await supabase
-        .from('profiles')
-        .insert(baseRow)
-        .select(['id', ...PROFILE_COLUMNS].join(', '))
-        .maybeSingle()
-    }
-  }
-
-  if (insertRes.error) {
-    // Posible carrera: otro proceso creó la fila justo antes. Volvemos a leer.
-    if (insertRes.error.code === '23505') {
-      const { data: again } = await supabase
-        .from('profiles')
-        .select(['id', ...PROFILE_COLUMNS].join(', '))
-        .eq('id', user.id)
-        .maybeSingle()
-      if (again) return again
-    }
-    throw insertRes.error
-  }
-
-  return insertRes.data
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export default function BusinessProfile() {
-  const navigate = useNavigate()
-  const [userId, setUserId] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [uploadingCover, setUploadingCover] = useState(false)
-  const [uploadingLogo, setUploadingLogo] = useState(false)
-  const [error, setError] = useState('')
-  const [okMsg, setOkMsg] = useState('')
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState({ cover: false, logo: false });
+  const [userId, setUserId] = useState(null);
+  const [message, setMessage] = useState(null);
+  const [slugStatus, setSlugStatus] = useState({ checking: false, available: true, touched: false });
+  const [copied, setCopied] = useState(false);
 
-  const [profile, setProfile] = useState({
-    business_name: '',
-    business_slug: '',
-    business_description: '',
-    business_logo_url: '',
-    business_cover_url: '',
-    business_whatsapp: '',
-    business_address: '',
-    business_department: '',
-    business_city: '',
-    business_template: 'store',
-    business_headline: '',
-    business_about: '',
-    business_schedule: '',
-    business_primary_color: DEFAULT_PRIMARY_COLOR,
-  })
+  const [form, setForm] = useState({
+    business_name: "",
+    business_slug: "",
+    business_description: "",
+    business_template: "store",
+    business_primary_color: "#2563eb",
+    business_phone: "",
+    business_whatsapp: "",
+    business_address: "",
+    business_schedule: "",
+    business_services: "",
+    cover_url: "",
+    logo_url: "",
+  });
 
-  const coverInputRef = useRef(null)
-  const logoInputRef = useRef(null)
+  const publicUrl = useMemo(() => {
+    if (!form.business_slug) return "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/seller/${form.business_slug}`;
+  }, [form.business_slug]);
 
-  // Vuelve a leer el perfil desde Supabase y refresca el estado.
-  async function reloadProfile(uid) {
-    const id = uid || userId
-    if (!id) return null
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(PROFILE_COLUMNS.join(', '))
-      .eq('id', id)
-      .maybeSingle()
-    if (error) throw error
-    if (data) {
-      setProfile(mapDbToState(data))
-    }
-    return data
-  }
-
+  // Cargar perfil actual
   useEffect(() => {
-    let mounted = true
-    async function load() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          navigate('/login')
-          return
-        }
-        if (!mounted) return
-        setUserId(user.id)
-
-        // 1) Garantizar fila en profiles (crea si no existe).
-        const row = await ensureProfileRow(user)
-        if (!mounted) return
-        if (row) {
-          setProfile(mapDbToState(row))
-        }
-      } catch (e) {
-        console.error(e)
-        setError('No se pudo cargar el perfil del negocio.')
-      } finally {
-        if (mounted) setLoading(false)
+    (async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
       }
+      setUserId(user.id);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setForm((prev) => ({
+          ...prev,
+          business_name: data.business_name || "",
+          business_slug: data.business_slug || "",
+          business_description: data.business_description || "",
+          business_template: data.business_template || "store",
+          business_primary_color: data.business_primary_color || "#2563eb",
+          business_phone: data.business_phone || "",
+          business_whatsapp: data.business_whatsapp || "",
+          business_address: data.business_address || "",
+          business_schedule: data.business_schedule || "",
+          business_services: data.business_services || "",
+          cover_url: data.cover_url || "",
+          logo_url: data.logo_url || "",
+        }));
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Generar slug automáticamente si está vacío al escribir el nombre
+  function handleNameChange(value) {
+    setForm((prev) => {
+      const next = { ...prev, business_name: value };
+      if (!prev.business_slug || !slugStatus.touched) {
+        next.business_slug = slugify(value);
+      }
+      return next;
+    });
+  }
+
+  function handleSlugChange(value) {
+    setSlugStatus((s) => ({ ...s, touched: true }));
+    setForm((prev) => ({ ...prev, business_slug: slugify(value) }));
+  }
+
+  // Validar unicidad del slug con debounce
+  useEffect(() => {
+    if (!form.business_slug || !userId) {
+      setSlugStatus((s) => ({ ...s, available: true, checking: false }));
+      return;
     }
-    load()
-    return () => { mounted = false }
-  }, [navigate])
-
-  function handleChange(e) {
-    const { name, value } = e.target
-    setProfile((p) => ({ ...p, [name]: value }))
-  }
-
-  function handleSlugChange(e) {
-    setProfile((p) => ({ ...p, business_slug: slugify(e.target.value) }))
-  }
-
-  async function uploadAsset(file, kind) {
-    if (!userId) return
-    setError('')
-    setOkMsg('')
-
-    const isCover = kind === 'cover'
-    const maxW = isCover ? 1600 : 600
-    const maxH = isCover ? 600 : 600
-
-    if (isCover) setUploadingCover(true)
-    else setUploadingLogo(true)
-
-    try {
-      if (!file.type.startsWith('image/')) {
-        throw new Error('El archivo debe ser una imagen.')
+    setSlugStatus((s) => ({ ...s, checking: true }));
+    const t = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("business_slug", form.business_slug)
+        .neq("id", userId)
+        .limit(1);
+      if (error) {
+        setSlugStatus({ checking: false, available: true, touched: true });
+        return;
       }
+      setSlugStatus({ checking: false, available: (data?.length ?? 0) === 0, touched: true });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.business_slug, userId]);
 
-      const { blob, ext, mime } = await optimizeImage(file, maxW, maxH, 0.75)
-      if (!blob) throw new Error('No se pudo procesar la imagen.')
-
-      const fileName = isCover ? `cover.${ext}` : `logo.${ext}`
-      const path = `${userId}/${fileName}`
-
+  async function uploadImage(file, kind) {
+    if (!file || !userId) return;
+    setUploading((u) => ({ ...u, [kind]: true }));
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${userId}/${kind}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase
         .storage
-        .from(BUCKET)
-        .upload(path, blob, {
-          contentType: mime,
-          upsert: true,
-          cacheControl: '3600',
-        })
-
-      if (upErr) throw upErr
-
-      const { data: pub } = supabase
-        .storage
-        .from(BUCKET)
-        .getPublicUrl(path)
-
-      // Cache buster para refrescar la imagen en el navegador.
-      const publicUrl = `${pub.publicUrl}?v=${Date.now()}`
-
-      const column = isCover ? 'business_cover_url' : 'business_logo_url'
-
-      // UPSERT seguro: si por alguna razón aún no existe la fila, se crea.
-      const { data: upserted, error: dbErr } = await supabase
-        .from('profiles')
-        .upsert(
-          { id: userId, [column]: publicUrl },
-          { onConflict: 'id' }
-        )
-        .select(PROFILE_COLUMNS.join(', '))
-        .maybeSingle()
-
-      if (dbErr) throw dbErr
-
-      if (upserted) {
-        setProfile(mapDbToState(upserted))
-      } else {
-        setProfile((p) => ({ ...p, [column]: publicUrl }))
-      }
-      setOkMsg(isCover ? 'Portada actualizada.' : 'Logo actualizado.')
+        .from("business")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("business").getPublicUrl(path);
+      setForm((prev) => ({ ...prev, [kind === "cover" ? "cover_url" : "logo_url"]: pub.publicUrl }));
     } catch (e) {
-      console.error(e)
-      setError(e.message || 'Error al subir la imagen.')
+      setMessage({ type: "error", text: "No se pudo subir la imagen. Verifica el bucket 'business' en Supabase Storage." });
     } finally {
-      if (isCover) setUploadingCover(false)
-      else setUploadingLogo(false)
+      setUploading((u) => ({ ...u, [kind]: false }));
     }
-  }
-
-  function onCoverChange(e) {
-    const file = e.target.files?.[0]
-    if (file) uploadAsset(file, 'cover')
-    e.target.value = ''
-  }
-
-  function onLogoChange(e) {
-    const file = e.target.files?.[0]
-    if (file) uploadAsset(file, 'logo')
-    e.target.value = ''
   }
 
   async function handleSave(e) {
-    e.preventDefault()
-    if (!userId) return
-    setSaving(true)
-    setError('')
-    setOkMsg('')
-    try {
-      // Normalizamos el slug por si el usuario lo dejó con espacios.
-      const cleanSlug = slugify(profile.business_slug)
+    e?.preventDefault?.();
+    setMessage(null);
+    if (!userId) return;
+    if (!form.business_name.trim()) {
+      setMessage({ type: "error", text: "El nombre del negocio es obligatorio." });
+      return;
+    }
+    if (!form.business_slug) {
+      setMessage({ type: "error", text: "La URL pública (slug) es obligatoria." });
+      return;
+    }
+    if (!slugStatus.available) {
+      setMessage({ type: "error", text: "Ese slug ya está en uso. Elige otro." });
+      return;
+    }
 
-      // Validamos plantilla contra el listado permitido.
-      const allowedTemplates = TEMPLATE_OPTIONS.map((t) => t.value)
-      const cleanTemplate = allowedTemplates.includes(profile.business_template)
-        ? profile.business_template
-        : 'store'
-
-      const cleanColor = normalizeHex(profile.business_primary_color)
-
-      // Payload de UPSERT. Incluimos id para el conflict target.
-      const payload = {
-        id: userId,
-        business_name: profile.business_name || null,
-        business_slug: cleanSlug || null,
-        business_description: profile.business_description || null,
-        business_logo_url: profile.business_logo_url || null,
-        business_cover_url: profile.business_cover_url || null,
-        business_whatsapp: profile.business_whatsapp || null,
-        business_address: profile.business_address || null,
-        business_department: profile.business_department || null,
-        business_city: profile.business_city || null,
-        business_template: cleanTemplate,
-        business_headline: profile.business_headline || null,
-        business_about: profile.business_about || null,
-        business_schedule: profile.business_schedule || null,
-        business_primary_color: cleanColor,
-      }
-
-      // UPSERT con detección real de filas afectadas:
-      // pedimos `select(...)` para obtener la fila persistida.
-      const { data: saved, error: upErr } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
-        .select(PROFILE_COLUMNS.join(', '))
-        .maybeSingle()
-
-      if (upErr) throw upErr
-
-      if (!saved) {
-        // No hubo fila confirmada => no confirmamos éxito.
-        throw new Error('Supabase no confirmó el guardado.')
-      }
-
-      // Re-lectura fresca desde Supabase para asegurar consistencia
-      // (RLS, triggers, normalizaciones del servidor, etc.).
-      const fresh = await reloadProfile(userId)
-      if (!fresh) {
-        throw new Error('Los datos se guardaron pero no se pudieron releer.')
-      }
-
-      setOkMsg('Datos del negocio guardados correctamente.')
-    } catch (e) {
-      console.error(e)
-      const msg = e?.message || ''
-      // Slug duplicado típico: violación de índice único.
-      if (e && (e.code === '23505' || /duplicate|unique/i.test(msg))) {
-        if (/business_slug/i.test(msg) || /slug/i.test(msg)) {
-          setError(
-            'Ese identificador de tienda (slug) ya está en uso por otro negocio. ' +
-            'Prueba con otro slug.'
-          )
-        } else {
-          setError('Ya existe un registro con esos datos. Verifica el slug u otros campos únicos.')
-        }
-      } else if (e && /business_template/i.test(msg)) {
-        setError('La plantilla seleccionada no es válida.')
-      } else if (/permission|denied|rls/i.test(msg)) {
-        setError('No tienes permisos para guardar este perfil. Vuelve a iniciar sesión.')
-      } else {
-        setError(msg || 'No se pudieron guardar los cambios.')
-      }
-    } finally {
-      setSaving(false)
+    setSaving(true);
+    const payload = { id: userId, ...form, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
+    setSaving(false);
+    if (error) {
+      setMessage({ type: "error", text: "No se pudo guardar: " + error.message });
+    } else {
+      setMessage({ type: "success", text: "Perfil guardado correctamente." });
     }
   }
 
-  // Estilos inline mínimos para no depender de un CSS externo.
-  const styles = {
-    cover: {
-      position: 'relative',
-      width: '100%',
-      height: '260px',
-      background: '#e4e6eb',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      marginBottom: '64px',
-    },
-    coverImg: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover',
-      display: 'block',
-    },
-    coverEmpty: {
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#65676b',
-      fontWeight: 600,
-    },
-    coverBtn: {
-      position: 'absolute',
-      right: '16px',
-      bottom: '16px',
-      padding: '8px 14px',
-      borderRadius: '8px',
-      border: '0',
-      background: 'rgba(0,0,0,0.65)',
-      color: '#fff',
-      cursor: 'pointer',
-      fontWeight: 600,
-    },
-    header: {
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'flex-end',
-      gap: '16px',
-      marginTop: '-80px',
-      padding: '0 16px',
-      flexWrap: 'wrap',
-    },
-    logoWrap: {
-      position: 'relative',
-      width: '140px',
-      height: '140px',
-    },
-    logo: {
-      width: '140px',
-      height: '140px',
-      borderRadius: '50%',
-      background: '#fff',
-      border: '4px solid #fff',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      overflow: 'hidden',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    logoImg: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover',
-    },
-    logoEmpty: {
-      color: '#65676b',
-      fontWeight: 700,
-    },
-    logoBtn: {
-      position: 'absolute',
-      right: 0,
-      bottom: 0,
-      width: '36px',
-      height: '36px',
-      borderRadius: '50%',
-      border: '2px solid #fff',
-      background: '#1877f2',
-      color: '#fff',
-      cursor: 'pointer',
-      fontSize: '16px',
-      lineHeight: 1,
-    },
-    title: {
-      flex: 1,
-      minWidth: '200px',
-      paddingBottom: '8px',
-    },
-    subtitle: {
-      color: '#65676b',
-      margin: '4px 0 0',
-      fontSize: '14px',
-    },
-    actions: {
-      paddingBottom: '8px',
-    },
-    grid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-      gap: '12px',
-      marginTop: '16px',
-    },
-    fieldFull: {
-      gridColumn: '1 / -1',
-    },
-    formActions: {
-      marginTop: '16px',
-      display: 'flex',
-      justifyContent: 'flex-end',
-    },
-    sectionCard: {
-      marginTop: 32,
-      padding: '20px',
-      background: '#fff',
-      border: '1px solid #e4e6eb',
-      borderRadius: '12px',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    },
-    sectionHeader: {
-      display: 'flex',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
-      gap: '8px',
-      marginBottom: '8px',
-    },
-    sectionTitle: {
-      margin: 0,
-      fontSize: '20px',
-    },
-    sectionHint: {
-      color: '#65676b',
-      fontSize: '14px',
-      margin: 0,
-    },
-    templateGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-      gap: '10px',
-      marginTop: '12px',
-    },
-    templateCardBase: {
-      cursor: 'pointer',
-      border: '2px solid #e4e6eb',
-      borderRadius: '10px',
-      padding: '12px',
-      background: '#fafbfc',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-start',
-      gap: '6px',
-      transition: 'border-color 120ms ease, background 120ms ease',
-      userSelect: 'none',
-    },
-    templateEmoji: {
-      fontSize: '22px',
-      lineHeight: 1,
-    },
-    templateLabel: {
-      fontWeight: 600,
-      fontSize: '14px',
-      color: '#1c1e21',
-    },
-    templateValue: {
-      fontSize: '12px',
-      color: '#65676b',
-    },
-    colorRow: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      flexWrap: 'wrap',
-    },
-    colorSwatch: (color) => ({
-      width: '40px',
-      height: '40px',
-      borderRadius: '10px',
-      background: color,
-      border: '2px solid #fff',
-      boxShadow: '0 0 0 1px #e4e6eb',
-    }),
-    colorInput: {
-      width: '52px',
-      height: '40px',
-      padding: 0,
-      border: '1px solid #e4e6eb',
-      borderRadius: '8px',
-      background: '#fff',
-      cursor: 'pointer',
-    },
-    colorText: {
-      width: '110px',
-    },
+  async function copyLink() {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // noop
+    }
+  }
+
+  function shareWhatsApp() {
+    if (!publicUrl) return;
+    const text = encodeURIComponent(
+      `${form.business_name ? "👋 " + form.business_name + "\n" : ""}Visita mi tienda: ${publicUrl}`
+    );
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
   if (loading) {
     return (
-      <div className="container">
-        <p>Cargando perfil del negocio...</p>
+      <div className="bp-loading">
+        <div className="bp-spinner" />
+        <p>Cargando perfil…</p>
+        <style>{baseStyles}</style>
       </div>
-    )
+    );
   }
 
-  const primaryColor = normalizeHex(profile.business_primary_color)
-
   return (
-    <div className="container">
-      {/* Portada estilo Facebook */}
-      <div style={styles.cover}>
-        {profile.business_cover_url ? (
-          <img
-            src={profile.business_cover_url}
-            alt="Portada del negocio"
-            style={styles.coverImg}
-          />
-        ) : (
-          <div style={styles.coverEmpty}>
-            <span>Sin portada</span>
-          </div>
-        )}
+    <div className="bp-wrap">
+      <style>{baseStyles}</style>
 
-        <button
-          type="button"
-          style={styles.coverBtn}
-          onClick={() => coverInputRef.current?.click()}
-          disabled={uploadingCover}
+      {/* Portada + logo tipo Facebook */}
+      <section className="bp-cover-card">
+        <div
+          className="bp-cover"
+          style={{
+            backgroundImage: form.cover_url
+              ? `url(${form.cover_url})`
+              : "linear-gradient(135deg,#1f2937,#0f172a)",
+          }}
         >
-          {uploadingCover ? 'Subiendo...' : '📷 Cambiar portada'}
-        </button>
+          <label className="bp-cover-btn">
+            {uploading.cover ? "Subiendo…" : "📷 Cambiar portada"}
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => uploadImage(e.target.files?.[0], "cover")}
+            />
+          </label>
+        </div>
 
-        <input
-          ref={coverInputRef}
-          type="file"
-          accept="image/*"
-          onChange={onCoverChange}
-          hidden
-        />
-      </div>
-
-      {/* Cabecera con logo */}
-      <div style={styles.header}>
-        <div style={styles.logoWrap}>
-          <div style={styles.logo}>
-            {profile.business_logo_url ? (
-              <img
-                src={profile.business_logo_url}
-                alt="Logo del negocio"
-                style={styles.logoImg}
+        <div className="bp-logo-row">
+          <div
+            className="bp-logo"
+            style={{
+              backgroundImage: form.logo_url ? `url(${form.logo_url})` : "none",
+              backgroundColor: form.logo_url ? "transparent" : "#e5e7eb",
+              borderColor: form.business_primary_color,
+            }}
+          >
+            {!form.logo_url && <span>🏪</span>}
+            <label className="bp-logo-btn" title="Cambiar logo">
+              {uploading.logo ? "…" : "📸"}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => uploadImage(e.target.files?.[0], "logo")}
               />
-            ) : (
-              <div style={styles.logoEmpty}>Logo</div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            style={styles.logoBtn}
-            onClick={() => logoInputRef.current?.click()}
-            disabled={uploadingLogo}
-            title="Cambiar logo"
-          >
-            {uploadingLogo ? '...' : '✏️'}
-          </button>
-
-          <input
-            ref={logoInputRef}
-            type="file"
-            accept="image/*"
-            onChange={onLogoChange}
-            hidden
-          />
-        </div>
-
-        <div style={styles.title}>
-          <h1 style={{ margin: 0 }}>{profile.business_name || 'Mi Negocio'}</h1>
-          {profile.business_slug && (
-            <p style={styles.subtitle}>
-              URL pública: <code>/seller/{profile.business_slug}</code>
-            </p>
-          )}
-        </div>
-
-        <div style={styles.actions}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => logoInputRef.current?.click()}
-            disabled={uploadingLogo}
-          >
-            {uploadingLogo ? 'Subiendo logo...' : 'Cambiar logo'}
-          </button>
-        </div>
-      </div>
-
-      {/* Mensajes */}
-      {error && <div className="alert alert-error" style={{ marginTop: 16 }}>{error}</div>}
-      {okMsg && <div className="alert alert-success" style={{ marginTop: 16 }}>{okMsg}</div>}
-
-      {/* Formulario de datos del negocio */}
-      <form onSubmit={handleSave} style={{ marginTop: 24 }}>
-        <h2>Información del negocio</h2>
-
-        <div style={styles.grid}>
-          <div className="form-group">
-            <label htmlFor="business_name">Nombre del negocio</label>
-            <input
-              id="business_name"
-              name="business_name"
-              type="text"
-              value={profile.business_name}
-              onChange={handleChange}
-              placeholder="Ej: Panadería La Espiga"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="business_slug">
-              Identificador de tienda (slug)
             </label>
-            <input
-              id="business_slug"
-              name="business_slug"
-              type="text"
-              value={profile.business_slug}
-              onChange={handleSlugChange}
-              placeholder="ej: panaderia-la-espiga"
-            />
-            <small>Se usa en la URL pública: /seller/&lt;slug&gt;</small>
           </div>
-
-          <div className="form-group">
-            <label htmlFor="business_whatsapp">WhatsApp</label>
-            <input
-              id="business_whatsapp"
-              name="business_whatsapp"
-              type="tel"
-              value={profile.business_whatsapp}
-              onChange={handleChange}
-              placeholder="Ej: 573001234567"
-            />
-            <small>Incluye indicativo del país sin signos (ej: 57…).</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="business_department">Departamento</label>
-            <input
-              id="business_department"
-              name="business_department"
-              type="text"
-              value={profile.business_department}
-              onChange={handleChange}
-              placeholder="Ej: Boyacá"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="business_city">Ciudad / Municipio</label>
-            <input
-              id="business_city"
-              name="business_city"
-              type="text"
-              value={profile.business_city}
-              onChange={handleChange}
-              placeholder="Ej: Tunja"
-            />
-          </div>
-
-          <div className="form-group" style={styles.fieldFull}>
-            <label htmlFor="business_address">Dirección</label>
-            <input
-              id="business_address"
-              name="business_address"
-              type="text"
-              value={profile.business_address}
-              onChange={handleChange}
-              placeholder="Ej: Calle 123 #45-67"
-            />
-          </div>
-
-          <div className="form-group" style={styles.fieldFull}>
-            <label htmlFor="business_description">Descripción</label>
-            <textarea
-              id="business_description"
-              name="business_description"
-              rows="4"
-              value={profile.business_description}
-              onChange={handleChange}
-              placeholder="Cuenta a tus clientes qué ofreces..."
-            />
+          <div className="bp-logo-info">
+            <h1>{form.business_name || "Tu negocio"}</h1>
+            <p>{form.business_description || "Cuéntale al mundo lo que ofreces."}</p>
           </div>
         </div>
+      </section>
 
-        {/* === Sección: Diseño de mi página === */}
-        <section style={styles.sectionCard} aria-labelledby="design-section-title">
-          <div style={styles.sectionHeader}>
-            <h2 id="design-section-title" style={styles.sectionTitle}>
-              🎨 Diseño de mi página
-            </h2>
-            <p style={styles.sectionHint}>
-              Personaliza cómo se verá tu mini web pública en <code>/seller/{profile.business_slug || 'tu-slug'}</code>.
-            </p>
+      {/* URL pública en vivo + acciones */}
+      <section className="bp-card bp-url-card">
+        <div className="bp-url-head">
+          <div>
+            <span className="bp-label">Tu URL pública</span>
+            <div className="bp-url">
+              {publicUrl || <em className="bp-muted">Escribe el nombre del negocio para generar la URL…</em>}
+            </div>
+            <div className="bp-slug-status">
+              {slugStatus.checking && <span className="bp-muted">Verificando disponibilidad…</span>}
+              {!slugStatus.checking && form.business_slug && slugStatus.available && (
+                <span className="bp-ok">✓ Disponible</span>
+              )}
+              {!slugStatus.checking && form.business_slug && !slugStatus.available && (
+                <span className="bp-err">✗ Ya está en uso</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="bp-actions">
+          <a
+            className="bp-btn bp-btn-primary"
+            href={publicUrl || "#"}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => { if (!publicUrl) e.preventDefault(); }}
+            style={{ background: form.business_primary_color }}
+          >
+            🌐 Ver mi web
+          </a>
+          <button type="button" className="bp-btn bp-btn-outline" onClick={copyLink} disabled={!publicUrl}>
+            {copied ? "✓ Copiado" : "🔗 Copiar link"}
+          </button>
+          <button
+            type="button"
+            className="bp-btn bp-btn-whats"
+            onClick={shareWhatsApp}
+            disabled={!publicUrl}
+          >
+            📱 Compartir por WhatsApp
+          </button>
+        </div>
+      </section>
+
+      {/* Formulario */}
+      <form className="bp-card" onSubmit={handleSave}>
+        <h2 className="bp-h2">Información del negocio</h2>
+
+        <div className="bp-grid">
+          <div className="bp-field">
+            <label>Nombre del negocio *</label>
+            <input
+              type="text"
+              value={form.business_name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="Ej: Sumercé Market"
+              required
+            />
           </div>
 
-          {/* Selector de plantilla con tarjetas */}
-          <div className="form-group" style={styles.fieldFull}>
-            <label htmlFor="business_template">Plantilla del negocio</label>
-            <small style={{ display: 'block', marginBottom: 8 }}>
-              Elige la plantilla que mejor describe tu negocio. Cada plantilla
-              tiene un estilo visual pensado para ese tipo de actividad.
-            </small>
-
-            {/* Tarjetas accesibles via radiogroup */}
-            <div
-              role="radiogroup"
-              aria-label="Plantilla del negocio"
-              style={styles.templateGrid}
-            >
-              {TEMPLATE_OPTIONS.map((opt) => {
-                const selected = profile.business_template === opt.value
-                const cardStyle = {
-                  ...styles.templateCardBase,
-                  borderColor: selected ? primaryColor : '#e4e6eb',
-                  background: selected ? '#f0f6ff' : '#fafbfc',
-                  outline: selected ? `0` : 'none',
-                  boxShadow: selected
-                    ? `0 0 0 2px ${primaryColor}33`
-                    : 'none',
-                }
-                return (
-                  <div
-                    key={opt.value}
-                    role="radio"
-                    aria-checked={selected}
-                    tabIndex={0}
-                    onClick={() =>
-                      setProfile((p) => ({ ...p, business_template: opt.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setProfile((p) => ({ ...p, business_template: opt.value }))
-                      }
-                    }}
-                    style={cardStyle}
-                  >
-                    <span style={styles.templateEmoji} aria-hidden="true">
-                      {opt.emoji}
-                    </span>
-                    <span style={styles.templateLabel}>{opt.label}</span>
-                    <span style={styles.templateValue}>{opt.value}</span>
-                  </div>
-                )
-              })}
+          <div className="bp-field">
+            <label>URL pública (slug) *</label>
+            <div className="bp-slug-input">
+              <span>/seller/</span>
+              <input
+                type="text"
+                value={form.business_slug}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="mi-negocio"
+                required
+              />
             </div>
+          </div>
 
-            {/* Select nativo como fallback accesible y para móviles */}
+          <div className="bp-field bp-col-2">
+            <label>Descripción</label>
+            <textarea
+              rows={3}
+              value={form.business_description}
+              onChange={(e) => setForm({ ...form, business_description: e.target.value })}
+              placeholder="¿Qué hace especial a tu negocio?"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label>Tipo de negocio (plantilla)</label>
             <select
-              id="business_template"
-              name="business_template"
-              value={profile.business_template}
-              onChange={handleChange}
-              style={{ marginTop: 12, maxWidth: 360 }}
+              value={form.business_template}
+              onChange={(e) => setForm({ ...form, business_template: e.target.value })}
             >
-              {TEMPLATE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.emoji} {opt.label}
-                </option>
+              {TEMPLATES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
           </div>
 
-          <div style={styles.grid}>
-            <div className="form-group" style={styles.fieldFull}>
-              <label htmlFor="business_headline">Titular destacado</label>
+          <div className="bp-field">
+            <label>Color principal</label>
+            <div className="bp-color">
               <input
-                id="business_headline"
-                name="business_headline"
+                type="color"
+                value={form.business_primary_color}
+                onChange={(e) => setForm({ ...form, business_primary_color: e.target.value })}
+              />
+              <input
                 type="text"
-                value={profile.business_headline}
-                onChange={handleChange}
-                maxLength={120}
-                placeholder="Ej: Pan artesanal recién horneado todos los días"
+                value={form.business_primary_color}
+                onChange={(e) => setForm({ ...form, business_primary_color: e.target.value })}
               />
-              <small>
-                Frase corta que aparece grande en tu página pública. Máx. 120 caracteres.
-              </small>
-            </div>
-
-            <div className="form-group" style={styles.fieldFull}>
-              <label htmlFor="business_about">Sobre el negocio</label>
-              <textarea
-                id="business_about"
-                name="business_about"
-                rows="5"
-                value={profile.business_about}
-                onChange={handleChange}
-                placeholder="Cuenta tu historia, qué te hace único, desde cuándo atiendes, etc."
-              />
-              <small>Texto largo que aparece en la sección “Sobre nosotros”.</small>
-            </div>
-
-            <div className="form-group" style={styles.fieldFull}>
-              <label htmlFor="business_schedule">Horario de atención</label>
-              <textarea
-                id="business_schedule"
-                name="business_schedule"
-                rows="3"
-                value={profile.business_schedule}
-                onChange={handleChange}
-                placeholder={'Ej:\nLunes a viernes: 8:00 a.m. – 6:00 p.m.\nSábados: 8:00 a.m. – 1:00 p.m.\nDomingos: cerrado'}
-              />
-              <small>Puedes usar varias líneas. Texto libre.</small>
-            </div>
-
-            <div className="form-group" style={styles.fieldFull}>
-              <label htmlFor="business_primary_color">Color principal</label>
-              <div style={styles.colorRow}>
-                <input
-                  id="business_primary_color"
-                  name="business_primary_color"
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) =>
-                    setProfile((p) => ({
-                      ...p,
-                      business_primary_color: e.target.value,
-                    }))
-                  }
-                  style={styles.colorInput}
-                  aria-label="Selector de color principal"
-                />
-                <input
-                  type="text"
-                  value={profile.business_primary_color}
-                  onChange={(e) =>
-                    setProfile((p) => ({
-                      ...p,
-                      business_primary_color: e.target.value,
-                    }))
-                  }
-                  placeholder="#2563eb"
-                  style={styles.colorText}
-                  aria-label="Código HEX del color principal"
-                />
-                <div
-                  aria-hidden="true"
-                  style={styles.colorSwatch(primaryColor)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() =>
-                    setProfile((p) => ({
-                      ...p,
-                      business_primary_color: DEFAULT_PRIMARY_COLOR,
-                    }))
-                  }
-                >
-                  Restablecer
-                </button>
-              </div>
-              <small>
-                Color principal de tu mini web pública (botones, acentos).
-                Formato HEX, p. ej. <code>#2563eb</code>.
-              </small>
             </div>
           </div>
-        </section>
 
-        <div style={styles.formActions}>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar cambios'}
+          <div className="bp-field">
+            <label>Teléfono</label>
+            <input
+              type="tel"
+              value={form.business_phone}
+              onChange={(e) => setForm({ ...form, business_phone: e.target.value })}
+              placeholder="3001234567"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label>WhatsApp (con código país)</label>
+            <input
+              type="tel"
+              value={form.business_whatsapp}
+              onChange={(e) => setForm({ ...form, business_whatsapp: e.target.value })}
+              placeholder="573001234567"
+            />
+          </div>
+
+          <div className="bp-field bp-col-2">
+            <label>Dirección / Ubicación</label>
+            <input
+              type="text"
+              value={form.business_address}
+              onChange={(e) => setForm({ ...form, business_address: e.target.value })}
+              placeholder="Calle 123 #45-67, Ciudad"
+            />
+          </div>
+
+          <div className="bp-field bp-col-2">
+            <label>Horario de atención</label>
+            <input
+              type="text"
+              value={form.business_schedule}
+              onChange={(e) => setForm({ ...form, business_schedule: e.target.value })}
+              placeholder="Lun–Sáb 9:00 a 18:00"
+            />
+          </div>
+
+          <div className="bp-field bp-col-2">
+            <label>Servicios / Lo que ofrecemos</label>
+            <textarea
+              rows={3}
+              value={form.business_services}
+              onChange={(e) => setForm({ ...form, business_services: e.target.value })}
+              placeholder="Sepáralos por coma. Ej: Asesoría, Envíos, Domicilios, Pagos con tarjeta"
+            />
+            <small className="bp-hint">Sepáralos por coma. Se mostrarán como tarjetas en tu web pública.</small>
+          </div>
+        </div>
+
+        {message && (
+          <div className={`bp-msg ${message.type === "error" ? "bp-msg-err" : "bp-msg-ok"}`}>
+            {message.text}
+          </div>
+        )}
+
+        <div className="bp-save">
+          <button type="submit" className="bp-btn bp-btn-primary" disabled={saving} style={{ background: form.business_primary_color }}>
+            {saving ? "Guardando…" : "💾 Guardar cambios"}
           </button>
         </div>
       </form>
     </div>
-  )
+  );
 }
+
+const baseStyles = `
+.bp-wrap{max-width:1080px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:20px;font-family:Inter,system-ui,sans-serif;color:#0f172a}
+.bp-loading{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#475569}
+.bp-spinner{width:36px;height:36px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:#2563eb;animation:bp-spin 1s linear infinite}
+@keyframes bp-spin{to{transform:rotate(360deg)}}
+.bp-cover-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.06);border:1px solid #e5e7eb}
+.bp-cover{position:relative;height:240px;background-size:cover;background-position:center;display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}
+.bp-cover-btn{background:rgba(0,0,0,.55);color:#fff;padding:8px 14px;border-radius:10px;font-size:14px;cursor:pointer;backdrop-filter:blur(6px);transition:transform .2s}
+.bp-cover-btn:hover{transform:translateY(-1px)}
+.bp-logo-row{display:flex;gap:18px;align-items:flex-end;padding:0 24px 20px;margin-top:-44px}
+.bp-logo{position:relative;width:120px;height:120px;border-radius:50%;border:4px solid #fff;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:0 6px 20px rgba(15,23,42,.15)}
+.bp-logo-btn{position:absolute;right:-2px;bottom:-2px;background:#0f172a;color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;border:2px solid #fff}
+.bp-logo-info{padding-bottom:6px}
+.bp-logo-info h1{margin:0;font-size:24px}
+.bp-logo-info p{margin:4px 0 0;color:#64748b;font-size:14px}
+.bp-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:22px;box-shadow:0 6px 20px rgba(15,23,42,.04)}
+.bp-url-card{display:flex;flex-direction:column;gap:14px}
+.bp-url-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.bp-label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:600}
+.bp-url{font-size:18px;font-weight:600;color:#0f172a;word-break:break-all;margin-top:4px}
+.bp-muted{color:#94a3b8;font-style:italic}
+.bp-slug-status{margin-top:6px;font-size:13px}
+.bp-ok{color:#16a34a;font-weight:600}
+.bp-err{color:#dc2626;font-weight:600}
+.bp-actions{display:flex;gap:10px;flex-wrap:wrap}
+.bp-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:none;cursor:pointer;font-weight:600;font-size:14px;transition:transform .15s,box-shadow .2s,opacity .2s;text-decoration:none}
+.bp-btn:disabled{opacity:.55;cursor:not-allowed}
+.bp-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(15,23,42,.12)}
+.bp-btn-primary{background:#2563eb;color:#fff}
+.bp-btn-outline{background:#fff;color:#0f172a;border:1px solid #cbd5e1}
+.bp-btn-whats{background:#25d366;color:#fff}
+.bp-h2{margin:0 0 16px;font-size:18px}
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+.bp-field{display:flex;flex-direction:column;gap:6px}
+.bp-field label{font-size:13px;font-weight:600;color:#334155}
+.bp-field input,.bp-field textarea,.bp-field select{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s}
+.bp-field input:focus,.bp-field textarea:focus,.bp-field select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.bp-col-2{grid-column:1 / -1}
+.bp-slug-input{display:flex;align-items:center;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fff}
+.bp-slug-input span{padding:0 10px;color:#64748b;background:#f1f5f9;font-size:14px;border-right:1px solid #e2e8f0;height:40px;display:flex;align-items:center}
+.bp-slug-input input{border:none;border-radius:0;flex:1}
+.bp-slug-input input:focus{box-shadow:none}
+.bp-color{display:flex;gap:8px;align-items:center}
+.bp-color input[type=color]{width:46px;height:40px;padding:2px;border-radius:8px;border:1px solid #cbd5e1;cursor:pointer}
+.bp-hint{color:#64748b;font-size:12px}
+.bp-msg{margin-top:14px;padding:10px 14px;border-radius:10px;font-size:14px}
+.bp-msg-ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+.bp-msg-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+.bp-save{display:flex;justify-content:flex-end;margin-top:18px}
+@media (max-width:720px){
+  .bp-cover{height:170px}
+  .bp-logo{width:96px;height:96px;font-size:34px}
+  .bp-logo-row{flex-direction:column;align-items:flex-start;margin-top:-36px}
+  .bp-grid{grid-template-columns:1fr}
+}
+`;
