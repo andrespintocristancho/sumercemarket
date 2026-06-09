@@ -12,7 +12,7 @@ import Admin from './pages/Admin.jsx';
 import OfferDetail from './pages/OfferDetail.jsx';
 import BusinessProfile from './pages/BusinessProfile.jsx';
 import SellerPage from './pages/SellerPage.jsx';
-
+import SellerPreviewPage from './pages/SellerPreviewPage.jsx';
 export default function App() {
   return (
     <AuthProvider>
@@ -27,6 +27,7 @@ export default function App() {
 
             {/* Página pública de la tienda de un vendedor */}
             <Route path="/seller/:slug" element={<SellerPage />} />
+            <Route path="/seller-preview/:slug" element={<SellerPreviewPage />} />
 
             <Route
               path="/publish"
