@@ -7,9 +7,10 @@ import { supabase } from '../lib/supabaseClient'
  * Ruta: /seller/:slug
  *
  * Lee de profiles:
- *  business_template, business_headline, business_about, business_schedule,
- *  business_primary_color, business_name, business_logo_url, business_cover_url,
- *  business_whatsapp, business_address, business_department, business_city
+ *  business_slug, business_template, business_headline, business_about,
+ *  business_schedule, business_primary_color, business_name, business_logo_url,
+ *  business_cover_url, business_whatsapp, business_address, business_department,
+ *  business_city
  *
  * Plantillas soportadas:
  *  store, fashion, beauty, health, gym, vehicles, food, services
@@ -153,11 +154,11 @@ export default function SellerPage() {
       setError('')
 
       try {
-        // 1) Buscar perfil por slug
+        // 1) Buscar perfil por business_slug
         const { data: prof, error: profErr } = await supabase
           .from('profiles')
           .select('*')
-          .eq('slug', slug)
+          .eq('business_slug', slug)
           .maybeSingle()
 
         if (profErr) throw profErr
