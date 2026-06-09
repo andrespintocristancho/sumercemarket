@@ -4,6 +4,23 @@ import { useNavigate } from 'react-router-dom'
 
 const BUCKET = 'business-assets'
 
+// Plantillas disponibles para la mini web pública del vendedor.
+// Los valores DEBEN coincidir con el CHECK constraint
+// `profiles_business_template_check` definido en
+// `supabase/business-templates.sql`.
+const TEMPLATE_OPTIONS = [
+  { value: 'store',    label: 'Tienda general',          emoji: '🛍️' },
+  { value: 'fashion',  label: 'Moda / Ropa / Zapatos',   emoji: '👗' },
+  { value: 'beauty',   label: 'Belleza',                 emoji: '💄' },
+  { value: 'health',   label: 'Salud / Odontología',     emoji: '🩺' },
+  { value: 'gym',      label: 'Gym / Deportes',          emoji: '🏋️' },
+  { value: 'vehicles', label: 'Vehículos',               emoji: '🚗' },
+  { value: 'food',     label: 'Plaza / Alimentos',       emoji: '🥬' },
+  { value: 'services', label: 'Servicios',               emoji: '🛠️' },
+]
+
+const DEFAULT_PRIMARY_COLOR = '#2563eb'
+
 // Genera un slug URL-safe a partir de un texto libre.
 function slugify(input) {
   return (input || '')
@@ -17,6 +34,14 @@ function slugify(input) {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 60)
+}
+
+// Valida un color HEX (#rgb o #rrggbb). Si no es válido, devuelve el default.
+function normalizeHex(color) {
+  if (!color) return DEFAULT_PRIMARY_COLOR
+  const c = String(color).trim()
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)) return c
+  return DEFAULT_PRIMARY_COLOR
 }
 
 // Optimiza una imagen en el navegador usando canvas.
@@ -77,7 +102,9 @@ export default function BusinessProfile() {
   // Columnas reales de profiles para el negocio:
   // business_name, business_slug, business_description,
   // business_logo_url, business_cover_url, business_whatsapp,
-  // business_address, business_department, business_city
+  // business_address, business_department, business_city,
+  // business_template, business_headline, business_about,
+  // business_schedule, business_primary_color
   const [profile, setProfile] = useState({
     business_name: '',
     business_slug: '',
@@ -88,6 +115,11 @@ export default function BusinessProfile() {
     business_address: '',
     business_department: '',
     business_city: '',
+    business_template: 'store',
+    business_headline: '',
+    business_about: '',
+    business_schedule: '',
+    business_primary_color: DEFAULT_PRIMARY_COLOR,
   })
 
   const coverInputRef = useRef(null)
@@ -107,7 +139,22 @@ export default function BusinessProfile() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('business_name, business_slug, business_description, business_logo_url, business_cover_url, business_whatsapp, business_address, business_department, business_city')
+          .select([
+            'business_name',
+            'business_slug',
+            'business_description',
+            'business_logo_url',
+            'business_cover_url',
+            'business_whatsapp',
+            'business_address',
+            'business_department',
+            'business_city',
+            'business_template',
+            'business_headline',
+            'business_about',
+            'business_schedule',
+            'business_primary_color',
+          ].join(', '))
           .eq('id', user.id)
           .maybeSingle()
 
@@ -125,6 +172,11 @@ export default function BusinessProfile() {
             business_address: data.business_address || '',
             business_department: data.business_department || '',
             business_city: data.business_city || '',
+            business_template: data.business_template || 'store',
+            business_headline: data.business_headline || '',
+            business_about: data.business_about || '',
+            business_schedule: data.business_schedule || '',
+            business_primary_color: normalizeHex(data.business_primary_color),
           }))
         }
       } catch (e) {
@@ -231,6 +283,14 @@ export default function BusinessProfile() {
       // Normalizamos el slug por si el usuario lo dejó con espacios.
       const cleanSlug = slugify(profile.business_slug)
 
+      // Validamos plantilla contra el listado permitido.
+      const allowedTemplates = TEMPLATE_OPTIONS.map((t) => t.value)
+      const cleanTemplate = allowedTemplates.includes(profile.business_template)
+        ? profile.business_template
+        : 'store'
+
+      const cleanColor = normalizeHex(profile.business_primary_color)
+
       const payload = {
         business_name: profile.business_name || null,
         business_slug: cleanSlug || null,
@@ -239,6 +299,12 @@ export default function BusinessProfile() {
         business_address: profile.business_address || null,
         business_department: profile.business_department || null,
         business_city: profile.business_city || null,
+        // Campos de plantilla profesional:
+        business_template: cleanTemplate,
+        business_headline: profile.business_headline || null,
+        business_about: profile.business_about || null,
+        business_schedule: profile.business_schedule || null,
+        business_primary_color: cleanColor,
       }
 
       const { error } = await supabase
@@ -247,13 +313,20 @@ export default function BusinessProfile() {
         .eq('id', userId)
       if (error) throw error
 
-      setProfile((p) => ({ ...p, business_slug: cleanSlug }))
+      setProfile((p) => ({
+        ...p,
+        business_slug: cleanSlug,
+        business_template: cleanTemplate,
+        business_primary_color: cleanColor,
+      }))
       setOkMsg('Datos del negocio guardados.')
     } catch (e) {
       console.error(e)
       // Slug duplicado típico: violación de índice único.
       if (e && (e.code === '23505' || /duplicate|unique/i.test(e.message || ''))) {
         setError('Ese identificador de tienda (slug) ya está en uso. Prueba con otro.')
+      } else if (e && /business_template/i.test(e.message || '')) {
+        setError('La plantilla seleccionada no es válida.')
       } else {
         setError('No se pudieron guardar los cambios.')
       }
@@ -265,7 +338,7 @@ export default function BusinessProfile() {
   // Estilos inline mínimos para no depender de un CSS externo.
   // Las clases base (container, btn, btn-primary, btn-secondary, alert, etc.)
   // se asumen presentes en App.css; aquí solo añadimos lo específico
-  // (portada y logo circular estilo Facebook).
+  // (portada y logo circular estilo Facebook + tarjetas de plantilla).
   const styles = {
     cover: {
       position: 'relative',
@@ -379,6 +452,89 @@ export default function BusinessProfile() {
       display: 'flex',
       justifyContent: 'flex-end',
     },
+    sectionCard: {
+      marginTop: 32,
+      padding: '20px',
+      background: '#fff',
+      border: '1px solid #e4e6eb',
+      borderRadius: '12px',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    },
+    sectionHeader: {
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '8px',
+      marginBottom: '8px',
+    },
+    sectionTitle: {
+      margin: 0,
+      fontSize: '20px',
+    },
+    sectionHint: {
+      color: '#65676b',
+      fontSize: '14px',
+      margin: 0,
+    },
+    templateGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gap: '10px',
+      marginTop: '12px',
+    },
+    templateCardBase: {
+      cursor: 'pointer',
+      border: '2px solid #e4e6eb',
+      borderRadius: '10px',
+      padding: '12px',
+      background: '#fafbfc',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: '6px',
+      transition: 'border-color 120ms ease, background 120ms ease',
+      userSelect: 'none',
+    },
+    templateEmoji: {
+      fontSize: '22px',
+      lineHeight: 1,
+    },
+    templateLabel: {
+      fontWeight: 600,
+      fontSize: '14px',
+      color: '#1c1e21',
+    },
+    templateValue: {
+      fontSize: '12px',
+      color: '#65676b',
+    },
+    colorRow: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      flexWrap: 'wrap',
+    },
+    colorSwatch: (color) => ({
+      width: '40px',
+      height: '40px',
+      borderRadius: '10px',
+      background: color,
+      border: '2px solid #fff',
+      boxShadow: '0 0 0 1px #e4e6eb',
+    }),
+    colorInput: {
+      width: '52px',
+      height: '40px',
+      padding: 0,
+      border: '1px solid #e4e6eb',
+      borderRadius: '8px',
+      background: '#fff',
+      cursor: 'pointer',
+    },
+    colorText: {
+      width: '110px',
+    },
   }
 
   if (loading) {
@@ -388,6 +544,8 @@ export default function BusinessProfile() {
       </div>
     )
   }
+
+  const primaryColor = normalizeHex(profile.business_primary_color)
 
   return (
     <div className="container">
@@ -575,6 +733,183 @@ export default function BusinessProfile() {
             />
           </div>
         </div>
+
+        {/* === Sección: Diseño de mi página === */}
+        <section style={styles.sectionCard} aria-labelledby="design-section-title">
+          <div style={styles.sectionHeader}>
+            <h2 id="design-section-title" style={styles.sectionTitle}>
+              🎨 Diseño de mi página
+            </h2>
+            <p style={styles.sectionHint}>
+              Personaliza cómo se verá tu mini web pública en <code>/seller/{profile.business_slug || 'tu-slug'}</code>.
+            </p>
+          </div>
+
+          {/* Selector de plantilla con tarjetas */}
+          <div className="form-group" style={styles.fieldFull}>
+            <label htmlFor="business_template">Plantilla del negocio</label>
+            <small style={{ display: 'block', marginBottom: 8 }}>
+              Elige la plantilla que mejor describe tu negocio. Cada plantilla
+              tiene un estilo visual pensado para ese tipo de actividad.
+            </small>
+
+            {/* Tarjetas accesibles via radiogroup */}
+            <div
+              role="radiogroup"
+              aria-label="Plantilla del negocio"
+              style={styles.templateGrid}
+            >
+              {TEMPLATE_OPTIONS.map((opt) => {
+                const selected = profile.business_template === opt.value
+                const cardStyle = {
+                  ...styles.templateCardBase,
+                  borderColor: selected ? primaryColor : '#e4e6eb',
+                  background: selected ? '#f0f6ff' : '#fafbfc',
+                  outline: selected ? `0` : 'none',
+                  boxShadow: selected
+                    ? `0 0 0 2px ${primaryColor}33`
+                    : 'none',
+                }
+                return (
+                  <div
+                    key={opt.value}
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={0}
+                    onClick={() =>
+                      setProfile((p) => ({ ...p, business_template: opt.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setProfile((p) => ({ ...p, business_template: opt.value }))
+                      }
+                    }}
+                    style={cardStyle}
+                  >
+                    <span style={styles.templateEmoji} aria-hidden="true">
+                      {opt.emoji}
+                    </span>
+                    <span style={styles.templateLabel}>{opt.label}</span>
+                    <span style={styles.templateValue}>{opt.value}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Select nativo como fallback accesible y para móviles */}
+            <select
+              id="business_template"
+              name="business_template"
+              value={profile.business_template}
+              onChange={handleChange}
+              style={{ marginTop: 12, maxWidth: 360 }}
+            >
+              {TEMPLATE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.emoji} {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={styles.grid}>
+            <div className="form-group" style={styles.fieldFull}>
+              <label htmlFor="business_headline">Titular destacado</label>
+              <input
+                id="business_headline"
+                name="business_headline"
+                type="text"
+                value={profile.business_headline}
+                onChange={handleChange}
+                maxLength={120}
+                placeholder="Ej: Pan artesanal recién horneado todos los días"
+              />
+              <small>
+                Frase corta que aparece grande en tu página pública. Máx. 120 caracteres.
+              </small>
+            </div>
+
+            <div className="form-group" style={styles.fieldFull}>
+              <label htmlFor="business_about">Sobre el negocio</label>
+              <textarea
+                id="business_about"
+                name="business_about"
+                rows="5"
+                value={profile.business_about}
+                onChange={handleChange}
+                placeholder="Cuenta tu historia, qué te hace único, desde cuándo atiendes, etc."
+              />
+              <small>Texto largo que aparece en la sección “Sobre nosotros”.</small>
+            </div>
+
+            <div className="form-group" style={styles.fieldFull}>
+              <label htmlFor="business_schedule">Horario de atención</label>
+              <textarea
+                id="business_schedule"
+                name="business_schedule"
+                rows="3"
+                value={profile.business_schedule}
+                onChange={handleChange}
+                placeholder={'Ej:\nLunes a viernes: 8:00 a.m. – 6:00 p.m.\nSábados: 8:00 a.m. – 1:00 p.m.\nDomingos: cerrado'}
+              />
+              <small>Puedes usar varias líneas. Texto libre.</small>
+            </div>
+
+            <div className="form-group" style={styles.fieldFull}>
+              <label htmlFor="business_primary_color">Color principal</label>
+              <div style={styles.colorRow}>
+                <input
+                  id="business_primary_color"
+                  name="business_primary_color"
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      business_primary_color: e.target.value,
+                    }))
+                  }
+                  style={styles.colorInput}
+                  aria-label="Selector de color principal"
+                />
+                <input
+                  type="text"
+                  value={profile.business_primary_color}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      business_primary_color: e.target.value,
+                    }))
+                  }
+                  placeholder="#2563eb"
+                  style={styles.colorText}
+                  aria-label="Código HEX del color principal"
+                />
+                <div
+                  aria-hidden="true"
+                  style={styles.colorSwatch(primaryColor)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    setProfile((p) => ({
+                      ...p,
+                      business_primary_color: DEFAULT_PRIMARY_COLOR,
+                    }))
+                  }
+                >
+                  Restablecer
+                </button>
+              </div>
+              <small>
+                Color principal de tu mini web pública (botones, acentos).
+                Formato HEX, p. ej. <code>#2563eb</code>.
+              </small>
+            </div>
+          </div>
+        </section>
 
         <div style={styles.formActions}>
           <button type="submit" className="btn btn-primary" disabled={saving}>
