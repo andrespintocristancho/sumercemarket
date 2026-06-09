@@ -14,6 +14,15 @@ import { supabase } from "../services/supabaseClient";
  *  - Todas las ofertas activas
  *  - CTA final a WhatsApp
  *
+ * Columnas usadas en `profiles`:
+ *   business_name, business_slug, business_description,
+ *   business_address, business_department, business_city,
+ *   business_template, business_headline, business_about,
+ *   business_schedule, business_primary_color,
+ *   business_whatsapp,
+ *   business_logo_url, business_cover_url,
+ *   business_services
+ *
  * Color principal: business_primary_color
  * Animaciones: fade, slide y hover.
  */
@@ -79,6 +88,13 @@ function hexToRgba(hex, alpha = 1) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function buildFullAddress(profile) {
+  if (!profile) return "";
+  return [profile.business_address, profile.business_city, profile.business_department]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export default function SellerPage() {
   const { slug } = useParams();
   const [loading, setLoading] = useState(true);
@@ -121,6 +137,7 @@ export default function SellerPage() {
     if (!profile?.business_services) return [];
     return profile.business_services.split(",").map((s) => s.trim()).filter(Boolean);
   }, [profile]);
+  const fullAddress = useMemo(() => buildFullAddress(profile), [profile]);
 
   function waLink(text = "") {
     if (!profile?.business_whatsapp) return null;
@@ -157,18 +174,20 @@ export default function SellerPage() {
       <header
         className="sp-hero"
         style={{
-          backgroundImage: `linear-gradient(135deg, ${hexToRgba(primary, .85)}, rgba(15,23,42,.75)), url(${profile.cover_url || ""})`,
+          backgroundImage: `linear-gradient(135deg, ${hexToRgba(primary, .85)}, rgba(15,23,42,.75)), url(${profile.business_cover_url || ""})`,
         }}
       >
         <div className="sp-hero-inner">
           <div className="sp-hero-logo" style={{ borderColor: primary }}>
-            {profile.logo_url
-              ? <img src={profile.logo_url} alt={profile.business_name} />
+            {profile.business_logo_url
+              ? <img src={profile.business_logo_url} alt={profile.business_name} />
               : <span>🏪</span>}
           </div>
           <h1 className="sp-fade-up">{profile.business_name}</h1>
-          {profile.business_description && (
-            <p className="sp-hero-desc sp-fade-up sp-delay-1">{profile.business_description}</p>
+          {(profile.business_headline || profile.business_description) && (
+            <p className="sp-hero-desc sp-fade-up sp-delay-1">
+              {profile.business_headline || profile.business_description}
+            </p>
           )}
           <div className="sp-hero-cta sp-fade-up sp-delay-2">
             {waLink() && (
@@ -188,7 +207,9 @@ export default function SellerPage() {
           <span className="sp-divider" />
         </div>
         <p className="sp-about">
-          {profile.business_description || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
+          {profile.business_about
+            || profile.business_description
+            || "Somos un negocio dedicado a ofrecerte lo mejor con atención cercana y de calidad."}
         </p>
       </section>
 
@@ -222,7 +243,7 @@ export default function SellerPage() {
       </section>
 
       {/* HORARIO Y UBICACIÓN */}
-      {(profile.business_schedule || profile.business_address || profile.business_phone) && (
+      {(profile.business_schedule || fullAddress || profile.business_whatsapp) && (
         <section className="sp-section sp-slide-up">
           <div className="sp-info-grid">
             {profile.business_schedule && (
@@ -232,13 +253,13 @@ export default function SellerPage() {
                 <p>{profile.business_schedule}</p>
               </div>
             )}
-            {profile.business_address && (
+            {fullAddress && (
               <div className="sp-info-card">
                 <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>📍</div>
                 <h3>Ubicación</h3>
-                <p>{profile.business_address}</p>
+                <p>{fullAddress}</p>
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.business_address)}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`}
                   target="_blank" rel="noreferrer"
                   className="sp-link" style={{ color: primary }}
                 >
@@ -246,11 +267,19 @@ export default function SellerPage() {
                 </a>
               </div>
             )}
-            {profile.business_phone && (
+            {profile.business_whatsapp && (
               <div className="sp-info-card">
-                <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>📞</div>
-                <h3>Teléfono</h3>
-                <p><a href={`tel:${profile.business_phone}`} className="sp-link" style={{ color: primary }}>{profile.business_phone}</a></p>
+                <div className="sp-info-icon" style={{ background: hexToRgba(primary, .12), color: primary }}>💬</div>
+                <h3>WhatsApp</h3>
+                <p>
+                  <a
+                    href={waLink() || "#"}
+                    target="_blank" rel="noreferrer"
+                    className="sp-link" style={{ color: primary }}
+                  >
+                    +{profile.business_whatsapp}
+                  </a>
+                </p>
               </div>
             )}
           </div>
