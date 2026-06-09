@@ -8,7 +8,16 @@ import { supabase } from "../services/supabaseClient";
  * - Muestra URL pública en vivo: /seller/{business_slug}.
  * - Botones: Ver mi web, Copiar link, Compartir por WhatsApp.
  * - Valida que el slug sea único en la tabla `profiles`.
- * - No pide URLs manuales para imágenes: usa Supabase Storage.
+ * - No pide URLs manuales para imágenes: usa Supabase Storage (bucket "business-assets").
+ *
+ * Columnas usadas en `profiles`:
+ *   business_name, business_slug, business_description,
+ *   business_address, business_department, business_city,
+ *   business_template, business_headline, business_about,
+ *   business_schedule, business_primary_color,
+ *   business_whatsapp,
+ *   business_logo_url, business_cover_url,
+ *   business_services
  */
 
 const TEMPLATES = [
@@ -21,6 +30,8 @@ const TEMPLATES = [
   { value: "services", label: "Servicios" },
   { value: "store", label: "Tienda" },
 ];
+
+const STORAGE_BUCKET = "business-assets";
 
 function slugify(text = "") {
   return text
@@ -50,13 +61,16 @@ export default function BusinessProfile() {
     business_description: "",
     business_template: "store",
     business_primary_color: "#2563eb",
-    business_phone: "",
     business_whatsapp: "",
     business_address: "",
+    business_department: "",
+    business_city: "",
+    business_headline: "",
+    business_about: "",
     business_schedule: "",
     business_services: "",
-    cover_url: "",
-    logo_url: "",
+    business_cover_url: "",
+    business_logo_url: "",
   });
 
   const publicUrl = useMemo(() => {
@@ -90,13 +104,16 @@ export default function BusinessProfile() {
           business_description: data.business_description || "",
           business_template: data.business_template || "store",
           business_primary_color: data.business_primary_color || "#2563eb",
-          business_phone: data.business_phone || "",
           business_whatsapp: data.business_whatsapp || "",
           business_address: data.business_address || "",
+          business_department: data.business_department || "",
+          business_city: data.business_city || "",
+          business_headline: data.business_headline || "",
+          business_about: data.business_about || "",
           business_schedule: data.business_schedule || "",
           business_services: data.business_services || "",
-          cover_url: data.cover_url || "",
-          logo_url: data.logo_url || "",
+          business_cover_url: data.business_cover_url || "",
+          business_logo_url: data.business_logo_url || "",
         }));
       }
       setLoading(false);
@@ -150,13 +167,17 @@ export default function BusinessProfile() {
       const path = `${userId}/${kind}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase
         .storage
-        .from("business")
+        .from(STORAGE_BUCKET)
         .upload(path, file, { upsert: true, cacheControl: "3600" });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("business").getPublicUrl(path);
-      setForm((prev) => ({ ...prev, [kind === "cover" ? "cover_url" : "logo_url"]: pub.publicUrl }));
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      const field = kind === "cover" ? "business_cover_url" : "business_logo_url";
+      setForm((prev) => ({ ...prev, [field]: pub.publicUrl }));
     } catch (e) {
-      setMessage({ type: "error", text: "No se pudo subir la imagen. Verifica el bucket 'business' en Supabase Storage." });
+      setMessage({
+        type: "error",
+        text: `No se pudo subir la imagen. Verifica el bucket '${STORAGE_BUCKET}' en Supabase Storage.`,
+      });
     } finally {
       setUploading((u) => ({ ...u, [kind]: false }));
     }
@@ -228,8 +249,8 @@ export default function BusinessProfile() {
         <div
           className="bp-cover"
           style={{
-            backgroundImage: form.cover_url
-              ? `url(${form.cover_url})`
+            backgroundImage: form.business_cover_url
+              ? `url(${form.business_cover_url})`
               : "linear-gradient(135deg,#1f2937,#0f172a)",
           }}
         >
@@ -248,12 +269,12 @@ export default function BusinessProfile() {
           <div
             className="bp-logo"
             style={{
-              backgroundImage: form.logo_url ? `url(${form.logo_url})` : "none",
-              backgroundColor: form.logo_url ? "transparent" : "#e5e7eb",
+              backgroundImage: form.business_logo_url ? `url(${form.business_logo_url})` : "none",
+              backgroundColor: form.business_logo_url ? "transparent" : "#e5e7eb",
               borderColor: form.business_primary_color,
             }}
           >
-            {!form.logo_url && <span>🏪</span>}
+            {!form.business_logo_url && <span>🏪</span>}
             <label className="bp-logo-btn" title="Cambiar logo">
               {uploading.logo ? "…" : "📸"}
               <input
@@ -346,12 +367,32 @@ export default function BusinessProfile() {
           </div>
 
           <div className="bp-field bp-col-2">
+            <label>Titular destacado</label>
+            <input
+              type="text"
+              value={form.business_headline}
+              onChange={(e) => setForm({ ...form, business_headline: e.target.value })}
+              placeholder="Frase corta que enganche a tus clientes"
+            />
+          </div>
+
+          <div className="bp-field bp-col-2">
             <label>Descripción</label>
             <textarea
               rows={3}
               value={form.business_description}
               onChange={(e) => setForm({ ...form, business_description: e.target.value })}
               placeholder="¿Qué hace especial a tu negocio?"
+            />
+          </div>
+
+          <div className="bp-field bp-col-2">
+            <label>Sobre el negocio</label>
+            <textarea
+              rows={4}
+              value={form.business_about}
+              onChange={(e) => setForm({ ...form, business_about: e.target.value })}
+              placeholder="Texto largo: historia, valores, equipo…"
             />
           </div>
 
@@ -383,17 +424,7 @@ export default function BusinessProfile() {
             </div>
           </div>
 
-          <div className="bp-field">
-            <label>Teléfono</label>
-            <input
-              type="tel"
-              value={form.business_phone}
-              onChange={(e) => setForm({ ...form, business_phone: e.target.value })}
-              placeholder="3001234567"
-            />
-          </div>
-
-          <div className="bp-field">
+          <div className="bp-field bp-col-2">
             <label>WhatsApp (con código país)</label>
             <input
               type="tel"
@@ -401,6 +432,7 @@ export default function BusinessProfile() {
               onChange={(e) => setForm({ ...form, business_whatsapp: e.target.value })}
               placeholder="573001234567"
             />
+            <small className="bp-hint">Se usa para los botones de contacto en tu web pública.</small>
           </div>
 
           <div className="bp-field bp-col-2">
@@ -409,7 +441,27 @@ export default function BusinessProfile() {
               type="text"
               value={form.business_address}
               onChange={(e) => setForm({ ...form, business_address: e.target.value })}
-              placeholder="Calle 123 #45-67, Ciudad"
+              placeholder="Calle 123 #45-67"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label>Departamento</label>
+            <input
+              type="text"
+              value={form.business_department}
+              onChange={(e) => setForm({ ...form, business_department: e.target.value })}
+              placeholder="Ej: Boyacá"
+            />
+          </div>
+
+          <div className="bp-field">
+            <label>Ciudad</label>
+            <input
+              type="text"
+              value={form.business_city}
+              onChange={(e) => setForm({ ...form, business_city: e.target.value })}
+              placeholder="Ej: Tunja"
             />
           </div>
 
