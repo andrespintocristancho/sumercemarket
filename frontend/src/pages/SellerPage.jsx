@@ -98,6 +98,7 @@ export default function SellerPage() {
   const [profile, setProfile] = useState(null);
   const [offers, setOffers] = useState([]);
   const [notFound, setNotFound] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -156,6 +157,47 @@ export default function SellerPage() {
     return `https://wa.me/${profile.business_whatsapp}?text=${msg}`;
   }
 
+  async function handleCopyLink() {
+    try {
+      const url = typeof window !== "undefined" ? window.location.href : "";
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const tmp = document.createElement("textarea");
+        tmp.value = url;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error("No se pudo copiar el enlace", e);
+    }
+  }
+
+  async function handleShare() {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const shareData = {
+      title: profile?.business_name || "Mira este negocio",
+      text: profile?.business_headline || profile?.business_description || "Te comparto este negocio",
+      url,
+    };
+    try {
+      if (navigator?.share) {
+        await navigator.share(shareData);
+      } else {
+        await handleCopyLink();
+      }
+    } catch (e) {
+      // El usuario canceló el share o no está soportado: hacemos fallback silencioso
+      if (e?.name !== "AbortError") {
+        await handleCopyLink();
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div className="sp-loading">
@@ -181,34 +223,70 @@ export default function SellerPage() {
     <div className="sp-wrap">
       <style>{styles(primary)}</style>
 
-      {/* 1. HERO (más compacto) */}
-      <header
-        className="sp-hero"
-        style={{
-          backgroundImage: `linear-gradient(135deg, ${hexToRgba(primary, .85)}, rgba(15,23,42,.75)), url(${profile.business_cover_url || ""})`,
-        }}
-      >
+      {/* 1. HERO — fondo oscuro con overlay + portada controlada */}
+      <header className="sp-hero">
+        {/* Capa de portada (imagen controlada) */}
+        <div
+          className="sp-hero-cover"
+          style={{
+            backgroundImage: profile.business_cover_url
+              ? `url(${profile.business_cover_url})`
+              : "none",
+          }}
+          aria-hidden="true"
+        />
+        {/* Overlay oscuro + tinte de color de marca */}
+        <div
+          className="sp-hero-overlay"
+          style={{
+            background: `linear-gradient(180deg, rgba(2,6,23,.55) 0%, rgba(2,6,23,.78) 60%, rgba(2,6,23,.92) 100%), radial-gradient(ellipse at top, ${hexToRgba(primary, .35)} 0%, transparent 60%)`,
+          }}
+          aria-hidden="true"
+        />
+
         <div className="sp-hero-inner">
-          <div className="sp-hero-logo" style={{ borderColor: primary }}>
+          <div className="sp-hero-logo" style={{ borderColor: "#fff" }}>
             {profile.business_logo_url
               ? <img src={profile.business_logo_url} alt={profile.business_name} />
               : <span>🏪</span>}
           </div>
-          <div className="sp-hero-text">
-            <h1 className="sp-fade-up">{profile.business_name}</h1>
-            {(profile.business_headline || profile.business_description) && (
-              <p className="sp-hero-desc sp-fade-up sp-delay-1">
-                {profile.business_headline || profile.business_description}
-              </p>
+
+          <h1 className="sp-hero-title sp-fade-up">{profile.business_name}</h1>
+
+          {(profile.business_headline || profile.business_description) && (
+            <p className="sp-hero-desc sp-fade-up sp-delay-1">
+              {profile.business_headline || profile.business_description}
+            </p>
+          )}
+
+          <div className="sp-hero-cta sp-fade-up sp-delay-2">
+            {waLink() && (
+              <a
+                href={waLink()}
+                target="_blank"
+                rel="noreferrer"
+                className="sp-btn sp-btn-whats"
+                aria-label="Contactar por WhatsApp"
+              >
+                <span aria-hidden="true">📱</span> WhatsApp
+              </a>
             )}
-            <div className="sp-hero-cta sp-fade-up sp-delay-2">
-              {waLink() && (
-                <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-whats">
-                  📱 WhatsApp
-                </a>
-              )}
-              <a href="#ofertas" className="sp-btn sp-btn-outline-light">Ver ofertas</a>
-            </div>
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="sp-btn sp-btn-outline-light"
+              aria-label="Copiar enlace del sitio"
+            >
+              <span aria-hidden="true">🔗</span> {copied ? "¡Copiado!" : "Copiar link"}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="sp-btn sp-btn-outline-light"
+              aria-label="Compartir sitio"
+            >
+              <span aria-hidden="true">📤</span> Compartir
+            </button>
           </div>
         </div>
       </header>
@@ -419,15 +497,84 @@ const styles = (primary) => `
 .sp-spinner{width:40px;height:40px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:${primary};animation:sp-spin 1s linear infinite}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 
-/* HERO COMPACTO */
-.sp-hero{position:relative;color:#fff;background-size:cover;background-position:center;padding:48px 24px 56px;text-align:left}
-.sp-hero-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:28px;flex-wrap:wrap}
-.sp-hero-logo{width:96px;height:96px;border-radius:50%;background:#fff;border:4px solid #fff;display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.22);animation:sp-pop .6s ease-out both;flex-shrink:0}
-.sp-hero-logo img{width:100%;height:100%;object-fit:cover}
-.sp-hero-text{flex:1;min-width:260px;display:flex;flex-direction:column;gap:10px}
-.sp-hero h1{font-size:36px;margin:0;letter-spacing:-.02em;text-shadow:0 4px 18px rgba(0,0,0,.25);line-height:1.15}
-.sp-hero-desc{font-size:16px;max-width:760px;opacity:.95;margin:0;line-height:1.5}
-.sp-hero-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+/* ============================
+   HERO — fondo oscuro + overlay
+   ============================ */
+.sp-hero{
+  position:relative;
+  isolation:isolate;
+  color:#fff;
+  background:#0b1220;
+  padding:72px 24px 84px;
+  text-align:center;
+  overflow:hidden;
+  min-height:clamp(340px, 52vh, 520px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+/* Capa de portada controlada (sin estirarse de forma extraña) */
+.sp-hero-cover{
+  position:absolute;
+  inset:0;
+  background-size:cover;
+  background-position:center center;
+  background-repeat:no-repeat;
+  z-index:-2;
+  transform:scale(1.02);
+  filter:saturate(1.05);
+}
+/* Overlay oscuro + tinte de color de marca */
+.sp-hero-overlay{
+  position:absolute;
+  inset:0;
+  z-index:-1;
+}
+.sp-hero-inner{
+  max-width:880px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:18px;
+  padding:0 8px;
+}
+.sp-hero-logo{
+  width:120px;height:120px;
+  border-radius:50%;
+  background:#fff;
+  border:4px solid #fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:48px;
+  overflow:hidden;
+  box-shadow:0 14px 40px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.08);
+  animation:sp-pop .6s ease-out both;
+  flex-shrink:0;
+}
+.sp-hero-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.sp-hero-title{
+  font-size:clamp(32px, 5vw, 56px);
+  margin:6px 0 0;
+  letter-spacing:-.02em;
+  line-height:1.08;
+  font-weight:800;
+  text-shadow:0 6px 24px rgba(0,0,0,.45);
+}
+.sp-hero-desc{
+  font-size:clamp(15px, 1.6vw, 18px);
+  max-width:680px;
+  opacity:.92;
+  margin:0;
+  line-height:1.55;
+  text-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+.sp-hero-cta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:10px;
+  justify-content:center;
+}
 @keyframes sp-pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
 
 /* Animaciones */
@@ -439,11 +586,19 @@ const styles = (primary) => `
 @keyframes sp-slide{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
 
 /* Botones */
-.sp-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;border:none;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .2s,box-shadow .25s,opacity .2s}
-.sp-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.sp-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;border:none;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;transition:transform .2s,box-shadow .25s,opacity .2s,background .2s;font-family:inherit}
+.sp-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.25)}
+.sp-btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .sp-btn-primary{background:${primary};color:#fff}
 .sp-btn-whats{background:#25d366;color:#fff}
-.sp-btn-outline-light{background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.6);backdrop-filter:blur(6px)}
+.sp-btn-outline-light{
+  background:rgba(255,255,255,.10);
+  color:#fff;
+  border:1.5px solid rgba(255,255,255,.55);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+.sp-btn-outline-light:hover{background:rgba(255,255,255,.18)}
 .sp-btn-lg{padding:16px 32px;font-size:17px}
 .sp-btn-block{width:100%;justify-content:center;margin-top:12px}
 
@@ -507,21 +662,29 @@ const styles = (primary) => `
 /* Footer */
 .sp-footer{text-align:center;padding:28px 20px;color:#64748b;font-size:13px;border-top:1px solid #e5e7eb;background:#fff}
 
-/* Responsive */
+/* ============================
+   Responsive
+   ============================ */
 @media (max-width:960px){
   .sp-section{padding:48px 22px}
 }
 @media (max-width:720px){
-  .sp-hero{padding:38px 18px 46px;text-align:center}
-  .sp-hero-inner{justify-content:center;text-align:center;gap:16px}
-  .sp-hero-text{align-items:center}
-  .sp-hero h1{font-size:26px}
-  .sp-hero-desc{font-size:14.5px}
-  .sp-hero-logo{width:80px;height:80px;font-size:34px;border-width:3px}
-  .sp-hero-cta{justify-content:center}
+  .sp-hero{
+    padding:56px 18px 64px;
+    min-height:clamp(320px, 64vh, 460px);
+  }
+  .sp-hero-logo{width:96px;height:96px;font-size:38px;border-width:3px}
+  .sp-hero-title{font-size:clamp(26px, 7vw, 34px)}
+  .sp-hero-desc{font-size:15px}
+  .sp-hero-cta{gap:8px}
+  .sp-btn{padding:10px 16px;font-size:14px}
   .sp-section{padding:40px 16px}
   .sp-section-head h2{font-size:22px}
   .sp-cta-final{padding:36px 18px;margin:16px;border-radius:18px}
   .sp-cta-final h2{font-size:20px}
+}
+@media (max-width:420px){
+  .sp-hero-cta{flex-direction:column;width:100%;max-width:300px;margin-left:auto;margin-right:auto}
+  .sp-hero-cta .sp-btn{width:100%;justify-content:center}
 }
 `;
