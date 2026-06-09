@@ -226,6 +226,52 @@ En `frontend/src/pages/BusinessProfile.jsx` (función `optimizeImage`):
   - Logo: `{userId}/logo.webp` (o `.jpg` si fallback).
 - La URL pública se obtiene con `getPublicUrl` y se guarda en `profiles.business_cover_url` / `profiles.business_logo_url`. El vendedor **nunca** pega una URL manual.
 
+## Editor de plantilla profesional en `/business-profile`
+
+`frontend/src/pages/BusinessProfile.jsx` incluye una sección **“🎨 Diseño de mi página”** que permite al vendedor personalizar cómo se verá su mini web pública en `/seller/:slug`. Esta sección **convive** con la portada/logo estilo Facebook y con el formulario de datos del negocio ya existente; no los reemplaza.
+
+Campos que el formulario lee y escribe en `profiles`:
+
+| Campo del formulario | Columna en `profiles` | Tipo de control | Notas |
+|---|---|---|---|
+| Plantilla del negocio | `business_template` | Tarjetas + `<select>` nativo | Valor validado contra el CHECK (`store`, `fashion`, `beauty`, `health`, `gym`, `vehicles`, `food`, `services`). |
+| Titular destacado | `business_headline` | `input[type=text]` (máx. 120 caracteres) | Frase corta que se mostrará grande en la página pública. |
+| Sobre el negocio | `business_about` | `textarea` (5 filas) | Texto largo tipo “sobre nosotros”. |
+| Horario de atención | `business_schedule` | `textarea` (3 filas) | Texto libre multilínea. |
+| Color principal | `business_primary_color` | `input[type=color]` + input HEX + botón “Restablecer” | Se normaliza a HEX (`#rgb` o `#rrggbb`). Default `#2563eb`. |
+
+Detalles de implementación importantes:
+
+- El selector de plantilla muestra **tarjetas accesibles** (con `role="radiogroup"` / `role="radio"`, `aria-checked` y manejo de `Enter`/`Espacio`) **y además** un `<select>` nativo como alternativa accesible y cómoda en móviles. Ambos controles están enlazados al mismo estado.
+- La tarjeta seleccionada usa `business_primary_color` para el borde y la sombra, dando feedback visual del color elegido.
+- Antes de guardar, el frontend:
+  - Valida que `business_template` esté dentro del listado permitido; si no, cae a `'store'`.
+  - Normaliza `business_primary_color` a HEX (`#rgb` o `#rrggbb`); si es inválido, cae al default `#2563eb`.
+  - Sigue normalizando el `business_slug` con `slugify(...)` como antes.
+- El `update` a `profiles` se hace en una sola operación junto con el resto de campos del negocio, sobre la fila `id = auth.uid()`.
+- **Esta pantalla no cambia `SellerPublic.jsx` ni el esquema de Supabase.** El consumo visual de estos campos en la página pública del vendedor se hará en un bloque posterior.
+
+### Cómo probar el editor de plantilla
+
+1. Asegúrate de haber ejecutado [`supabase/business-templates.sql`](./supabase/business-templates.sql) (ver paso **3.1**) para que existan las columnas `business_template`, `business_headline`, `business_about`, `business_schedule` y `business_primary_color` en `profiles`.
+2. Arranca el frontend:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+3. Inicia sesión con un usuario y entra a `http://localhost:5173/business-profile`.
+4. Verifica que sigues viendo la portada estilo Facebook, el logo circular y el formulario actual del negocio (no se rompió nada).
+5. Baja hasta la sección **“🎨 Diseño de mi página”** y comprueba que aparece:
+   - El selector de plantilla con 8 tarjetas (Tienda general, Moda / Ropa / Zapatos, Belleza, Salud / Odontología, Gym / Deportes, Vehículos, Plaza / Alimentos, Servicios) y un `<select>` equivalente.
+   - El campo **Titular destacado**.
+   - El campo **Sobre el negocio**.
+   - El campo **Horario de atención**.
+   - El input **Color principal** con selector de color, campo HEX, muestra de color y botón **Restablecer**.
+6. Cambia los valores y pulsa **Guardar cambios**. Debe aparecer “Datos del negocio guardados.”.
+7. Recarga la página: los valores deben persistir (vienen de `profiles`).
+8. (Opcional) En Supabase, **Table Editor → `profiles`**, busca tu fila y confirma que las columnas `business_template`, `business_headline`, `business_about`, `business_schedule` y `business_primary_color` se actualizaron.
+
 ## Modelo de datos
 
 Todas las tablas viven en el esquema `public` y están definidas en [`supabase/schema.sql`](./supabase/schema.sql). Las columnas de **negocio** dentro de `profiles` se añaden con [`supabase/business-profile.sql`](./supabase/business-profile.sql) y las columnas de **plantilla pública** con [`supabase/business-templates.sql`](./supabase/business-templates.sql). El esquema coincide **exactamente** con los campos que usa el frontend actual: no se usan `municipality`, ni `is_active`, ni `category_id`, ni una tabla `categories`, ni `business_category`, ni `business_phone`.
@@ -251,11 +297,11 @@ Todas las tablas viven en el esquema `public` y están definidas en [`supabase/s
 | `business_address` | `text` | Dirección del negocio. |
 | `business_department` | `text` | Departamento del negocio. |
 | `business_city` | `text` | Ciudad/municipio del negocio. |
-| `business_template` | `text` | Plantilla visual de la página pública. Default `'store'`. CHECK: `store \| fashion \| beauty \| health \| gym \| vehicles \| food \| services`. |
-| `business_headline` | `text` | Titular corto destacado del negocio. |
-| `business_about` | `text` | Texto largo "sobre el negocio". |
-| `business_schedule` | `text` | Horario de atención (texto libre). |
-| `business_primary_color` | `text` | Color primario (HEX) de la plantilla. Default `'#2563eb'`. |
+| `business_template` | `text` | Plantilla visual de la página pública. Default `'store'`. CHECK: `store \| fashion \| beauty \| health \| gym \| vehicles \| food \| services`. Editable desde `/business-profile`. |
+| `business_headline` | `text` | Titular corto destacado del negocio. Editable desde `/business-profile`. |
+| `business_about` | `text` | Texto largo "sobre el negocio". Editable desde `/business-profile`. |
+| `business_schedule` | `text` | Horario de atención (texto libre). Editable desde `/business-profile`. |
+| `business_primary_color` | `text` | Color primario (HEX) de la plantilla. Default `'#2563eb'`. Editable desde `/business-profile`. |
 
 > ⚠️ El frontend (`BusinessProfile.jsx`) **solo lee y escribe estas columnas** de negocio. No usa `business_category` ni `business_phone`.
 
@@ -333,7 +379,7 @@ Definidas en `frontend/src/App.jsx` con `react-router-dom`:
 | `/seller/:slug` | `SellerPublic` | Pública | Página pública de un vendedor (usa `business_slug`). |
 | `/publish` | `Publish` | `ProtectedRoute` | Publicar una oferta. |
 | `/my-offers` | `MyOffers` | `ProtectedRoute` | Ofertas del usuario actual. |
-| `/business-profile` | `BusinessProfile` | `ProtectedRoute` | Editar nombre, slug, logo, portada y datos del negocio. |
+| `/business-profile` | `BusinessProfile` | `ProtectedRoute` | Editar nombre, slug, logo, portada, datos del negocio y **plantilla profesional** (sección “Diseño de mi página”). |
 | `/admin` | `Admin` | `ProtectedRoute adminOnly` | Panel de administración. |
 | `*` | `NotFound` | — | 404. |
 
