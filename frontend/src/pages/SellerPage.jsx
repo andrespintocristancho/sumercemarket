@@ -13,6 +13,9 @@ import { supabase } from '../services/supabase'
  *
  * Plantillas soportadas:
  *  store, fashion, beauty, health, gym, vehicles, food, services
+ *
+ * Ofertas: tabla `offers` filtrada por `user_id = profile.id` y `status = 'active'`.
+ * Detalle de oferta en ruta `/offers/:id`.
  */
 
 // ---------- Plantillas visuales ----------
@@ -158,11 +161,11 @@ export default function SellerPage() {
           return
         }
 
-        // 2) Ofertas activas del vendedor
+        // 2) Ofertas activas del vendedor (offers.user_id = profile.id)
         const { data: offs, error: offErr } = await supabase
           .from('offers')
           .select('*')
-          .eq('seller_id', prof.id)
+          .eq('user_id', prof.id)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
 
@@ -659,7 +662,7 @@ function OfferCard({ offer, primary, template, whatsapp, businessName, featured,
 
         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
           <Link
-            to={`/offer/${offer.id}`}
+            to={`/offers/${offer.id}`}
             className="sm-btn"
             style={{
               background: primary,
