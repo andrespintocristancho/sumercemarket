@@ -1,0 +1,168 @@
+/* ==========================================================================
+   design-tokens.css
+   Sistema de diseno PREMIUM de SumerceMarket (inspirado en Stitch).
+   --------------------------------------------------------------------------
+   - Archivo NUEVO y aditivo. No reemplaza ningun CSS existente.
+   - Define tipografia (Plus Jakarta Sans), tokens de color, sombras, radios
+     y clases base reutilizables.
+   - Sin Tailwind CDN. Sin imagenes externas. Sin Base64.
+   ========================================================================== */
+
+/* ---------- Tipografia: Plus Jakarta Sans ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ==========================================================================
+   TOKENS
+   ========================================================================== */
+:root {
+  /* Familia tipografica */
+  --sm-font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Colores de marca */
+  --sm-midnight: #0f172a;        /* Midnight Deep */
+  --sm-primary: #000666;         /* Primary (azul profundo) */
+  --sm-primary-strong: #1a237e;  /* Primary container */
+  --sm-whatsapp: #25d366;        /* Verde WhatsApp vibrante */
+  --sm-whatsapp-strong: #1ebe5d;
+  --sm-emerald: #10b981;         /* Emerald (acciones de conversion) */
+
+  /* Superficies y neutrales */
+  --sm-surface: #f7f9fb;
+  --sm-surface-card: #ffffff;
+  --sm-surface-container: #eceef0;
+  --sm-on-surface: #191c1e;
+  --sm-on-surface-variant: #454652;
+
+  /* Glassmorphism */
+  --sm-glass: rgba(255, 255, 255, 0.70);
+  --sm-glass-dark: rgba(15, 23, 42, 0.55);
+  --sm-glass-blur: 24px;
+
+  /* Bordes */
+  --sm-border: rgba(0, 0, 0, 0.08);
+  --sm-border-strong: rgba(15, 23, 42, 0.16);
+
+  /* Sombras (multinivel ambient) */
+  --sm-shadow-soft:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 14px rgba(15, 23, 42, 0.08);
+  --sm-shadow-premium:
+    0 0 0 1px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.12),
+    0 24px 60px rgba(15, 23, 42, 0.16);
+
+  /* Radios */
+  --sm-radius-card: 16px;   /* 1rem */
+  --sm-radius-panel: 24px;  /* 1.5rem */
+  --sm-radius-pill: 9999px;
+
+  /* Layout / espaciado (regla de 8px) */
+  --sm-container-max: 1440px;
+  --sm-gutter: 24px;
+
+  /* Easing premium */
+  --sm-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --sm-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==========================================================================
+   ANIMACIONES
+   ========================================================================== */
+@keyframes smFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes smWhatsappPulse {
+  0%   { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 0 rgba(37, 211, 102, 0.45); }
+  70%  { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 14px rgba(37, 211, 102, 0); }
+  100% { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+
+/* ==========================================================================
+   CLASES BASE REUTILIZABLES
+   ========================================================================== */
+
+/* Contenedor fluido capado a 1440px */
+.sm-container {
+  width: 100%;
+  max-width: var(--sm-container-max);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 64px);
+  font-family: var(--sm-font);
+}
+
+/* Tarjeta glassmorphism (Level 2) */
+.sm-glass-card {
+  font-family: var(--sm-font);
+  background: var(--sm-glass);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--sm-radius-panel);
+  backdrop-filter: blur(var(--sm-glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--sm-glass-blur)) saturate(160%);
+  box-shadow: var(--sm-shadow-premium);
+  transition: transform 0.2s var(--sm-ease), box-shadow 0.2s var(--sm-ease), backdrop-filter 0.2s var(--sm-ease-soft);
+}
+.sm-glass-card:hover {
+  transform: scale(1.02);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.05),
+    0 14px 32px rgba(15, 23, 42, 0.16),
+    0 32px 70px rgba(15, 23, 42, 0.20);
+}
+
+/* Tarjeta premium (Level 1) sin bordes, sombra suave */
+.sm-premium-card {
+  font-family: var(--sm-font);
+  background: var(--sm-surface-card);
+  border: 0;
+  border-radius: var(--sm-radius-card);
+  box-shadow: var(--sm-shadow-soft);
+  overflow: hidden;
+  transition: transform 0.2s var(--sm-ease), box-shadow 0.2s var(--sm-ease);
+}
+.sm-premium-card:hover {
+  transform: scale(1.02);
+  box-shadow: var(--sm-shadow-premium);
+}
+
+/* Boton WhatsApp con pulso verde sutil */
+.sm-whatsapp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-family: var(--sm-font);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--sm-whatsapp), var(--sm-whatsapp-strong));
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  padding: 0.85rem 1.4rem;
+  cursor: pointer;
+  animation: smWhatsappPulse 2.4s ease-out infinite;
+  transition: transform 0.2s var(--sm-ease), filter 0.2s var(--sm-ease);
+}
+.sm-whatsapp-button:hover {
+  transform: scale(1.03) translateY(-2px);
+  filter: brightness(1.03);
+}
+.sm-whatsapp-button:active {
+  transform: scale(1.0);
+}
+
+/* Utilidad de entrada fade-up */
+.sm-fade-up {
+  animation: smFadeUp 0.5s var(--sm-ease-soft) both;
+}
+
+/* Accesibilidad: respetar movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .sm-glass-card,
+  .sm-premium-card,
+  .sm-whatsapp-button,
+  .sm-fade-up {
+    animation: none !important;
+    transition: none !important;
+  }
+}
