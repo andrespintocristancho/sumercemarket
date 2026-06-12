@@ -1,0 +1,333 @@
+/* ==========================================================================
+   seller-sm-theme.css
+   Capa visual PREMIUM (Stitch) para las clases REALES del StoreModule (sm-*).
+   --------------------------------------------------------------------------
+   - Archivo NUEVO y aditivo. No reemplaza ningun CSS existente.
+   - Usa variables de design-tokens.css si existen; si no, usa fallbacks.
+   - No toca JSX, logica, Supabase ni queries.
+   - Sin Tailwind CDN. Sin imagenes externas. Sin Base64.
+   ========================================================================== */
+
+/* ---------- Tipografia: Plus Jakarta Sans (idempotente) ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ---------- Fallbacks de tokens ---------- */
+:root {
+  --smt2-font: var(--sm-font, 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  --smt2-primary: var(--sm-primary, #000666);
+  --smt2-midnight: var(--sm-midnight, #0f172a);
+  --smt2-whatsapp: var(--sm-whatsapp, #25d366);
+  --smt2-whatsapp-strong: var(--sm-whatsapp-strong, #1ebe5d);
+  --smt2-glass: var(--sm-glass, rgba(255, 255, 255, 0.70));
+  --smt2-surface: var(--sm-surface, #f7f9fb);
+  --smt2-surface-card: var(--sm-surface-card, #ffffff);
+  --smt2-border: var(--sm-border, rgba(0, 0, 0, 0.08));
+  --smt2-on-surface: var(--sm-on-surface, #191c1e);
+  --smt2-on-surface-variant: var(--sm-on-surface-variant, #454652);
+  --smt2-shadow-soft: var(--sm-shadow-soft, 0 1px 2px rgba(15,23,42,0.06), 0 4px 14px rgba(15,23,42,0.08));
+  --smt2-shadow-premium: var(--sm-shadow-premium, 0 0 0 1px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.12), 0 24px 60px rgba(15,23,42,0.16));
+  --smt2-ease: var(--sm-ease, cubic-bezier(0.34, 1.56, 0.64, 1));
+  --smt2-ease-soft: var(--sm-ease-soft, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* ---------- Animaciones (con prefijo propio para no colisionar) ---------- */
+@keyframes smt2FadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes smt2WhatsappPulse {
+  0%   { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 0 rgba(37, 211, 102, 0.45); }
+  70%  { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 14px rgba(37, 211, 102, 0); }
+  100% { box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32), 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+
+/* ==========================================================================
+   CONTENEDOR DE LA TIENDA
+   ========================================================================== */
+.sm-store {
+  font-family: var(--smt2-font);
+  color: var(--smt2-on-surface);
+  background:
+    radial-gradient(900px 360px at 90% -10%, rgba(0, 6, 102, 0.06), transparent 60%),
+    radial-gradient(900px 360px at 0% 10%, rgba(37, 211, 102, 0.05), transparent 60%),
+    var(--smt2-surface);
+  min-height: 100%;
+}
+
+/* ==========================================================================
+   SECCIONES
+   ========================================================================== */
+.sm-section {
+  font-family: var(--smt2-font);
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: clamp(24px, 5vw, 56px) clamp(20px, 4vw, 64px);
+  animation: smt2FadeUp 0.55s var(--smt2-ease-soft) both;
+}
+
+/* ==========================================================================
+   WELCOME / HERO
+   ========================================================================== */
+.sm-welcome {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(1100px 380px at 8% -25%, rgba(0, 6, 102, 0.55), transparent 60%),
+    linear-gradient(135deg, var(--smt2-midnight) 0%, #11183f 55%, #1a237e 100%);
+  box-shadow: var(--smt2-shadow-premium);
+  isolation: isolate;
+}
+.sm-welcome-inner {
+  position: relative;
+  padding: clamp(28px, 6vw, 64px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+.sm-welcome .sm-title,
+.sm-welcome-inner .sm-title {
+  color: #fff;
+}
+.sm-welcome .sm-subtitle,
+.sm-welcome-inner .sm-subtitle {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ==========================================================================
+   TITULOS Y TEXTOS
+   ========================================================================== */
+.sm-title {
+  font-family: var(--smt2-font);
+  font-weight: 800;
+  font-size: clamp(28px, 4.5vw, 48px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--smt2-midnight);
+}
+.sm-subtitle {
+  font-family: var(--smt2-font);
+  font-weight: 400;
+  font-size: clamp(16px, 2vw, 18px);
+  line-height: 1.6;
+  margin: 0;
+  color: var(--smt2-on-surface-variant);
+}
+
+/* ==========================================================================
+   BOTONES (pill premium)
+   ========================================================================== */
+.sm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-family: var(--smt2-font);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(135deg, var(--smt2-primary), #1a237e);
+  border: 0;
+  border-radius: 9999px;
+  padding: 0.9rem 1.5rem;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(0, 6, 102, 0.24);
+  transition: transform 0.2s var(--smt2-ease), box-shadow 0.2s var(--smt2-ease), filter 0.2s var(--smt2-ease);
+}
+.sm-btn:hover {
+  transform: scale(1.03) translateY(-2px);
+  filter: brightness(1.04);
+  box-shadow: 0 16px 32px rgba(0, 6, 102, 0.30);
+}
+.sm-btn:active {
+  transform: scale(1.0);
+}
+
+/* WhatsApp con pulso verde sutil */
+.sm-btn-whatsapp {
+  background: linear-gradient(135deg, var(--smt2-whatsapp), var(--smt2-whatsapp-strong));
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32);
+  animation: smt2WhatsappPulse 2.4s ease-out infinite;
+}
+.sm-btn-whatsapp:hover {
+  box-shadow: 0 16px 34px rgba(37, 211, 102, 0.42);
+}
+
+/* ==========================================================================
+   BENEFICIOS
+   ========================================================================== */
+.sm-benefits {
+  font-family: var(--smt2-font);
+}
+.sm-benefits-grid {
+  display: grid;
+  gap: clamp(16px, 2.5vw, 24px);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  margin-top: clamp(16px, 3vw, 28px);
+}
+.sm-benefit-card {
+  font-family: var(--smt2-font);
+  background: var(--smt2-glass);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  padding: clamp(20px, 3vw, 28px);
+  box-shadow: var(--smt2-shadow-soft);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  transition: transform 0.2s var(--smt2-ease), box-shadow 0.2s var(--smt2-ease);
+}
+.sm-benefit-card:hover {
+  transform: scale(1.02) translateY(-4px);
+  box-shadow: var(--smt2-shadow-premium);
+}
+.sm-benefit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  margin-bottom: 14px;
+  color: var(--smt2-primary);
+  background: rgba(0, 6, 102, 0.08);
+  font-size: 24px;
+}
+
+/* ==========================================================================
+   OFERTAS / CATALOGO
+   ========================================================================== */
+.sm-offers {
+  font-family: var(--smt2-font);
+}
+.sm-offers-grid {
+  display: grid;
+  gap: clamp(18px, 2.5vw, 28px);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  margin-top: clamp(16px, 3vw, 28px);
+}
+
+.sm-offer-card {
+  font-family: var(--smt2-font);
+  display: flex;
+  flex-direction: column;
+  background: var(--smt2-surface-card);
+  border: 1px solid var(--smt2-border);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--smt2-shadow-soft);
+  transition: transform 0.2s var(--smt2-ease), box-shadow 0.2s var(--smt2-ease), border-color 0.2s var(--smt2-ease);
+  will-change: transform;
+  animation: smt2FadeUp 0.5s var(--smt2-ease-soft) both;
+}
+.sm-offer-card:hover {
+  transform: scale(1.02) translateY(-4px);
+  box-shadow: var(--smt2-shadow-premium);
+  border-color: rgba(0, 6, 102, 0.16);
+}
+
+.sm-offer-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: linear-gradient(135deg, #eef1f6, #e3e8f0);
+}
+.sm-offer-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s var(--smt2-ease-soft);
+}
+.sm-offer-card:hover .sm-offer-media img {
+  transform: scale(1.05);
+}
+
+.sm-offer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: clamp(16px, 2.5vw, 22px);
+  flex: 1 1 auto;
+}
+.sm-offer-title {
+  font-family: var(--smt2-font);
+  font-weight: 700;
+  font-size: clamp(17px, 2vw, 20px);
+  line-height: 1.3;
+  margin: 0;
+  color: var(--smt2-midnight);
+}
+.sm-offer-desc {
+  font-family: var(--smt2-font);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--smt2-on-surface-variant);
+}
+.sm-offer-price {
+  font-family: var(--smt2-font);
+  font-weight: 800;
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--smt2-primary);
+  margin-top: 4px;
+}
+.sm-offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+/* Tablet */
+@media (max-width: 1024px) {
+  .sm-offers-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .sm-benefits-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* Movil: stack en una columna con padding comodo */
+@media (max-width: 640px) {
+  .sm-offers-grid,
+  .sm-benefits-grid {
+    grid-template-columns: 1fr;
+  }
+  .sm-welcome {
+    border-radius: 20px;
+  }
+  .sm-btn {
+    width: 100%;
+  }
+  .sm-offer-actions .sm-btn {
+    width: 100%;
+  }
+}
+
+/* Accesibilidad: respetar movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .sm-section,
+  .sm-offer-card,
+  .sm-benefit-card,
+  .sm-btn,
+  .sm-btn-whatsapp,
+  .sm-offer-media img {
+    animation: none !important;
+    transition: none !important;
+  }
+}
