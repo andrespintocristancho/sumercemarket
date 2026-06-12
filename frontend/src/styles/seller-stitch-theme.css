@@ -1,0 +1,274 @@
+/* ==========================================================================
+   seller-stitch-theme.css
+   Capa visual PREMIUM (Stitch) para la pagina publica del vendedor.
+   --------------------------------------------------------------------------
+   - Archivo NUEVO y aditivo. No reemplaza seller-modules.css,
+     seller-premium.css ni seller-premium-overrides.css.
+   - Depende de los tokens definidos en design-tokens.css.
+   - Aplica mejoras sobre selectores existentes probables:
+     .sp-section .sp-card .sp-cards .sp-hero .sp-cta .sp-service
+     .sp-offers .sp-divider .store-module .store-card .store-section
+   - Si algun selector no existe, simplemente no tiene efecto (no rompe nada).
+   ========================================================================== */
+
+/* ---------- Fallbacks de tokens (por si design-tokens.css no cargara) ---- */
+:root {
+  --smt-font: var(--sm-font, 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  --smt-midnight: var(--sm-midnight, #0f172a);
+  --smt-primary: var(--sm-primary, #000666);
+  --smt-whatsapp: var(--sm-whatsapp, #25d366);
+  --smt-whatsapp-strong: var(--sm-whatsapp-strong, #1ebe5d);
+  --smt-surface-card: var(--sm-surface-card, #ffffff);
+  --smt-glass: var(--sm-glass, rgba(255, 255, 255, 0.70));
+  --smt-border: var(--sm-border, rgba(0, 0, 0, 0.08));
+  --smt-shadow-soft: var(--sm-shadow-soft, 0 1px 2px rgba(15,23,42,0.06), 0 4px 14px rgba(15,23,42,0.08));
+  --smt-shadow-premium: var(--sm-shadow-premium, 0 8px 24px rgba(15,23,42,0.12), 0 24px 60px rgba(15,23,42,0.16));
+  --smt-radius-card: var(--sm-radius-card, 16px);
+  --smt-radius-panel: var(--sm-radius-panel, 24px);
+  --smt-ease: var(--sm-ease, cubic-bezier(0.34, 1.56, 0.64, 1));
+  --smt-ease-soft: var(--sm-ease-soft, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* ==========================================================================
+   SECCIONES
+   ========================================================================== */
+.sp-section,
+.store-section,
+.store-module {
+  font-family: var(--smt-font);
+  color: var(--sm-on-surface, #191c1e);
+  animation: smFadeUp 0.5s var(--smt-ease-soft) both;
+}
+
+.sp-section + .sp-section,
+.store-section + .store-section {
+  margin-top: clamp(20px, 4vw, 40px);
+}
+
+.sp-divider {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--smt-border), transparent);
+  margin: clamp(16px, 3vw, 32px) 0;
+}
+
+/* ==========================================================================
+   HERO (glassmorphism + degradado midnight)
+   ========================================================================== */
+.sp-hero {
+  position: relative;
+  font-family: var(--smt-font);
+  border-radius: var(--smt-radius-panel);
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(1100px 380px at 8% -25%, rgba(0, 6, 102, 0.55), transparent 60%),
+    linear-gradient(135deg, var(--smt-midnight) 0%, #11183f 55%, #1a237e 100%);
+  box-shadow: var(--smt-shadow-premium);
+  isolation: isolate;
+}
+.sp-hero .sp-card {
+  background: var(--smt-glass);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* ==========================================================================
+   GRID DE CARDS
+   ========================================================================== */
+.sp-cards {
+  display: grid;
+  gap: clamp(16px, 2.5vw, 24px);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* ==========================================================================
+   CARDS PREMIUM (Level 1 / Level 2)
+   ========================================================================== */
+.sp-card,
+.store-card,
+.sp-service,
+.sp-offers .sp-card {
+  font-family: var(--smt-font);
+  background: var(--smt-surface-card);
+  border: 1px solid var(--smt-border);
+  border-radius: var(--smt-radius-card);
+  box-shadow: var(--smt-shadow-soft);
+  overflow: hidden;
+  transition:
+    transform 0.2s var(--smt-ease),
+    box-shadow 0.2s var(--smt-ease),
+    border-color 0.2s var(--smt-ease);
+  will-change: transform;
+}
+
+/* Hover con elevacion y leve scale */
+.sp-card:hover,
+.store-card:hover,
+.sp-service:hover,
+.sp-offers .sp-card:hover {
+  transform: scale(1.02);
+  box-shadow: var(--smt-shadow-premium);
+  border-color: rgba(0, 6, 102, 0.18);
+}
+
+/* Acento superior en servicios */
+.sp-service {
+  position: relative;
+}
+.sp-service::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--smt-primary), #1a237e);
+  opacity: 0;
+  transition: opacity 0.2s var(--smt-ease-soft);
+}
+.sp-service:hover::before {
+  opacity: 1;
+}
+
+/* Imagenes internas: top-corner radius + zoom suave */
+.sp-card img,
+.store-card img,
+.sp-offers img,
+.sp-service img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-top-left-radius: var(--smt-radius-card);
+  border-top-right-radius: var(--smt-radius-card);
+  transition: transform 0.4s var(--smt-ease-soft);
+}
+.sp-card:hover img,
+.store-card:hover img,
+.sp-offers .sp-card:hover img,
+.sp-service:hover img {
+  transform: scale(1.03);
+}
+
+/* ==========================================================================
+   OFERTAS / CATALOGO
+   ========================================================================== */
+.sp-offers {
+  font-family: var(--smt-font);
+}
+.sp-offers .sp-cards {
+  margin-top: clamp(12px, 2vw, 20px);
+}
+
+/* ==========================================================================
+   CTA WHATSAPP (boton profesional con pulso)
+   ========================================================================== */
+.sp-cta a,
+.sp-cta button,
+a.sp-cta,
+button.sp-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-family: var(--smt-font);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--smt-whatsapp), var(--smt-whatsapp-strong));
+  border: 0;
+  border-radius: 9999px;
+  padding: 0.85rem 1.4rem;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32);
+  transition: transform 0.2s var(--smt-ease), filter 0.2s var(--smt-ease), box-shadow 0.2s var(--smt-ease);
+}
+.sp-cta a:hover,
+.sp-cta button:hover,
+a.sp-cta:hover,
+button.sp-cta:hover {
+  transform: scale(1.03) translateY(-2px);
+  filter: brightness(1.03);
+  box-shadow: 0 16px 34px rgba(37, 211, 102, 0.42);
+}
+.sp-cta a:active,
+.sp-cta button:active,
+a.sp-cta:active,
+button.sp-cta:active {
+  transform: scale(1.0);
+}
+
+/* ==========================================================================
+   TIPOGRAFIA / JERARQUIA EN MODULOS
+   ========================================================================== */
+.sp-section h1,
+.store-section h1,
+.sp-hero h1 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.sp-section h2,
+.store-section h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.sp-section h3,
+.store-section h3,
+.store-card h3,
+.sp-card h3 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--smt-midnight);
+}
+.sp-section p,
+.store-section p,
+.store-card p,
+.sp-card p {
+  line-height: 1.6;
+  color: var(--sm-on-surface-variant, #454652);
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+/* Tablet */
+@media (max-width: 1024px) {
+  .sp-cards {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* Movil: stack en una columna con padding comodo */
+@media (max-width: 640px) {
+  .sp-cards {
+    grid-template-columns: 1fr;
+  }
+  .sp-hero {
+    border-radius: var(--smt-radius-card);
+  }
+  .sp-cta a,
+  .sp-cta button,
+  a.sp-cta,
+  button.sp-cta {
+    width: 100%;
+  }
+}
+
+/* Accesibilidad: respetar movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .sp-section,
+  .store-section,
+  .store-module,
+  .sp-card,
+  .store-card,
+  .sp-service,
+  .sp-offers .sp-card,
+  .sp-card img,
+  .store-card img,
+  .sp-offers img,
+  .sp-service img {
+    animation: none !important;
+    transition: none !important;
+  }
+}
