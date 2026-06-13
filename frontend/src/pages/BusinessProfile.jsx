@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import '../styles/business-profile-builder.css';
@@ -54,6 +54,8 @@ export default function BusinessProfile() {
 
   // Offers
   const [offers, setOffers] = useState([]);
+  const [uploadingOfferId, setUploadingOfferId] = useState(null);
+  const offerFileRefs = useRef({});
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -158,7 +160,7 @@ export default function BusinessProfile() {
     }
   };
 
-  // ─── Upload image ────────────────────────────────────────
+  // ─── Upload image (general) ──────────────────────────────
   const uploadImage = async (file, bucket, folder) => {
     const ext = file.name.split('.').pop();
     const fileName = `${folder}/${userId}_${Date.now()}.${ext}`;
@@ -200,6 +202,53 @@ export default function BusinessProfile() {
       showToast('Error subiendo logo: ' + err.message, 'error');
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  // ─── Upload offer image ──────────────────────────────────
+  const handleOfferImageUpload = async (e, offerId) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    setUploadingOfferId(offerId);
+    try {
+      const ext = file.name.split('.').pop();
+      const filePath = `${userId}/${offerId}-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('offer-images')
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('offer-images')
+        .getPublicUrl(filePath);
+
+      const newUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('offers')
+        .update({ image_url: newUrl })
+        .eq('id', offerId)
+        .eq('user_id', userId);
+      if (updateError) throw updateError;
+
+      setOffers(prev =>
+        prev.map(o => o.id === offerId ? { ...o, image_url: newUrl } : o)
+      );
+
+      showToast('Imagen de oferta actualizada');
+    } catch (err) {
+      console.error(err);
+      showToast('Error subiendo imagen: ' + err.message, 'error');
+    } finally {
+      setUploadingOfferId(null);
+    }
+  };
+
+  const triggerOfferFileInput = (offerId) => {
+    if (offerFileRefs.current[offerId]) {
+      offerFileRefs.current[offerId].click();
     }
   };
 
@@ -575,36 +624,99 @@ export default function BusinessProfile() {
               </div>
             ) : (
               <div className="bp-offer-grid">
-                {offers.map(offer => (
-                  <div
-                    className="bp-offer-card"
-                    key={offer.id}
-                    onClick={() => navigate(`/offers/${offer.id}`)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {offer.image_url ? (
-                      <img className="bp-offer-img" src={offer.image_url} alt={offer.title} />
-                    ) : (
-                      <div className="bp-offer-img" style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 36, color: 'var(--bp-text-muted)'
-                      }}>
-                        📷
+                {offers.map(offer => {
+                  const isUploading = uploadingOfferId === offer.id;
+                  return (
+                    <div className="bp-offer-card" key={offer.id}>
+                      {/* ── Imagen con overlay para cambiar ── */}
+                      <div
+                        className="bp-offer-img-wrap"
+                        style={{ position: 'relative', cursor: 'pointer' }}
+                        onClick={() => triggerOfferFileInput(offer.id)}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          ref={el => { offerFileRefs.current[offer.id] = el; }}
+                          onChange={e => handleOfferImageUpload(e, offer.id)}
+                        />
+                        {offer.image_url ? (
+                          <img
+                            className="bp-offer-img"
+                            src={offer.image_url}
+                            alt={offer.title}
+                          />
+                        ) : (
+                          <div
+                            className="bp-offer-img"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 36,
+                              color: 'var(--bp-text-muted)',
+                            }}
+                          >
+                            📷
+                          </div>
+                        )}
+                        {/* Overlay de cambiar imagen */}
+                        <div
+                          className="bp-offer-img-overlay"
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.55)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            opacity: isUploading ? 1 : 0,
+                            transition: 'opacity 0.25s ease',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <span style={{
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: '#fff',
+                            background: 'rgba(99,102,241,0.85)',
+                            backdropFilter: 'blur(6px)',
+                            padding: '8px 18px',
+                            borderRadius: 50,
+                          }}>
+                            {isUploading ? '⏳ Subiendo...' : '📷 Cambiar imagen'}
+                          </span>
+                        </div>
+                        <style>{`
+                          .bp-offer-img-wrap:hover .bp-offer-img-overlay {
+                            opacity: 1 !important;
+                            pointer-events: auto !important;
+                          }
+                        `}</style>
                       </div>
-                    )}
-                    <div className="bp-offer-body">
-                      <div className="bp-offer-title">{offer.title}</div>
-                      <div className="bp-offer-price">{formatPrice(offer.price)}</div>
-                      {offer.status && (
-                        <span className={`bp-offer-status ${offer.status}`}>
-                          {offer.status === 'active' ? '● Activa' :
-                           offer.status === 'paused' ? '⏸ Pausada' :
-                           offer.status === 'sold' ? '✓ Vendida' : offer.status}
-                        </span>
-                      )}
+
+                      {/* ── Body de la oferta ── */}
+                      <div
+                        className="bp-offer-body"
+                        onClick={() => navigate(`/offers/${offer.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="bp-offer-title">{offer.title}</div>
+                        <div className="bp-offer-price">{formatPrice(offer.price)}</div>
+                        {offer.status && (
+                          <span className={`bp-offer-status ${offer.status}`}>
+                            {offer.status === 'active' ? '● Activa' :
+                             offer.status === 'paused' ? '⏸ Pausada' :
+                             offer.status === 'sold' ? '✓ Vendida' : offer.status}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
