@@ -1,561 +1,713 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-
-/**
- * BusinessProfile
- * - Perfil del negocio tipo Facebook (portada + logo).
- * - Genera business_slug automáticamente desde business_name si está vacío.
- * - Muestra URL pública en vivo: /seller/{business_slug}.
- * - Botones: Ver mi web, Copiar link, Compartir por WhatsApp.
- * - Valida que el slug sea único en la tabla `profiles`.
- * - No pide URLs manuales para imágenes: usa Supabase Storage (bucket "business-assets").
- *
- * Columnas usadas en `profiles`:
- *   business_name, business_slug, business_description,
- *   business_address, business_department, business_city,
- *   business_template, business_headline, business_about,
- *   business_schedule, business_primary_color,
- *   business_whatsapp,
- *   business_logo_url, business_cover_url,
- *   business_services
- */
+import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
+import '../styles/business-profile-builder.css';
 
 const TEMPLATES = [
-  { value: "fashion", label: "Moda" },
-  { value: "beauty", label: "Belleza" },
-  { value: "health", label: "Salud" },
-  { value: "gym", label: "Gimnasio" },
-  { value: "vehicles", label: "Vehículos" },
-  { value: "food", label: "Comida" },
-  { value: "services", label: "Servicios" },
-  { value: "store", label: "Tienda" },
+  { id: 'store', emoji: '🏪', name: 'Tienda' },
+  { id: 'fashion', emoji: '👗', name: 'Moda' },
+  { id: 'beauty', emoji: '💄', name: 'Belleza' },
+  { id: 'health', emoji: '🏥', name: 'Salud' },
+  { id: 'gym', emoji: '💪', name: 'Gym' },
+  { id: 'vehicles', emoji: '🚗', name: 'Vehículos' },
+  { id: 'food', emoji: '🍔', name: 'Comida' },
+  { id: 'services', emoji: '🔧', name: 'Servicios' },
 ];
 
-const STORAGE_BUCKET = "business-assets";
-
-function slugify(text = "") {
-  return text
-    .toString()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+const DEPARTMENTS = [
+  'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',
+  'Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca',
+  'Guainía','Guaviare','Huila','La Guajira','Magdalena','Meta','Nariño',
+  'Norte de Santander','Putumayo','Quindío','Risaralda','San Andrés y Providencia',
+  'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada','Bogotá D.C.'
+];
 
 export default function BusinessProfile() {
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState({ cover: false, logo: false });
+  const [toast, setToast] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [message, setMessage] = useState(null);
-  const [slugStatus, setSlugStatus] = useState({ checking: false, available: true, touched: false });
-  const [copied, setCopied] = useState(false);
 
-  const [form, setForm] = useState({
-    business_name: "",
-    business_slug: "",
-    business_description: "",
-    business_template: "store",
-    business_primary_color: "#2563eb",
-    business_whatsapp: "",
-    business_address: "",
-    business_department: "",
-    business_city: "",
-    business_headline: "",
-    business_about: "",
-    business_schedule: "",
-    business_services: "",
-    business_cover_url: "",
-    business_logo_url: "",
-  });
+  // Profile fields
+  const [businessName, setBusinessName] = useState('');
+  const [businessSlug, setBusinessSlug] = useState('');
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [businessWhatsapp, setBusinessWhatsapp] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [businessDepartment, setBusinessDepartment] = useState('');
+  const [businessCity, setBusinessCity] = useState('');
+  const [businessTemplate, setBusinessTemplate] = useState('store');
+  const [businessHeadline, setBusinessHeadline] = useState('');
+  const [businessAbout, setBusinessAbout] = useState('');
+  const [businessSchedule, setBusinessSchedule] = useState('');
+  const [businessPrimaryColor, setBusinessPrimaryColor] = useState('#6366f1');
+  const [businessServices, setBusinessServices] = useState([]);
+  const [newService, setNewService] = useState('');
 
-  const publicUrl = useMemo(() => {
-    if (!form.business_slug) return "";
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/seller/${form.business_slug}`;
-  }, [form.business_slug]);
+  // Images
+  const [logoUrl, setLogoUrl] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
-  // Cargar perfil actual
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      setUserId(user.id);
+  // Offers
+  const [offers, setOffers] = useState([]);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!error && data) {
-        setForm((prev) => ({
-          ...prev,
-          business_name: data.business_name || "",
-          business_slug: data.business_slug || "",
-          business_description: data.business_description || "",
-          business_template: data.business_template || "store",
-          business_primary_color: data.business_primary_color || "#2563eb",
-          business_whatsapp: data.business_whatsapp || "",
-          business_address: data.business_address || "",
-          business_department: data.business_department || "",
-          business_city: data.business_city || "",
-          business_headline: data.business_headline || "",
-          business_about: data.business_about || "",
-          business_schedule: data.business_schedule || "",
-          business_services: data.business_services || "",
-          business_cover_url: data.business_cover_url || "",
-          business_logo_url: data.business_logo_url || "",
-        }));
-      }
-      setLoading(false);
-    })();
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // Generar slug automáticamente si está vacío al escribir el nombre
-  function handleNameChange(value) {
-    setForm((prev) => {
-      const next = { ...prev, business_name: value };
-      if (!prev.business_slug || !slugStatus.touched) {
-        next.business_slug = slugify(value);
-      }
-      return next;
-    });
-  }
-
-  function handleSlugChange(value) {
-    setSlugStatus((s) => ({ ...s, touched: true }));
-    setForm((prev) => ({ ...prev, business_slug: slugify(value) }));
-  }
-
-  // Validar unicidad del slug con debounce
+  // ─── Load profile ────────────────────────────────────────
   useEffect(() => {
-    if (!form.business_slug || !userId) {
-      setSlugStatus((s) => ({ ...s, available: true, checking: false }));
-      return;
-    }
-    setSlugStatus((s) => ({ ...s, checking: true }));
-    const t = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("business_slug", form.business_slug)
-        .neq("id", userId)
-        .limit(1);
-      if (error) {
-        setSlugStatus({ checking: false, available: true, touched: true });
-        return;
+    const loadProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { navigate('/login'); return; }
+        setUserId(user.id);
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          setBusinessName(profile.business_name || '');
+          setBusinessSlug(profile.business_slug || '');
+          setBusinessDescription(profile.business_description || '');
+          setBusinessWhatsapp(profile.business_whatsapp || '');
+          setBusinessAddress(profile.business_address || '');
+          setBusinessDepartment(profile.business_department || '');
+          setBusinessCity(profile.business_city || '');
+          setBusinessTemplate(profile.business_template || 'store');
+          setBusinessHeadline(profile.business_headline || '');
+          setBusinessAbout(profile.business_about || '');
+          setBusinessSchedule(profile.business_schedule || '');
+          setBusinessPrimaryColor(profile.business_primary_color || '#6366f1');
+          setLogoUrl(profile.business_logo_url || '');
+          setCoverUrl(profile.business_cover_url || '');
+
+          let svc = [];
+          if (profile.business_services) {
+            try {
+              svc = typeof profile.business_services === 'string'
+                ? JSON.parse(profile.business_services)
+                : profile.business_services;
+            } catch { svc = []; }
+          }
+          setBusinessServices(Array.isArray(svc) ? svc : []);
+        }
+
+        // Load offers
+        const { data: offerData } = await supabase
+          .from('offers')
+          .select('id, title, price, image_url, status')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        setOffers(offerData || []);
+      } catch (err) {
+        console.error(err);
+        showToast('Error cargando perfil', 'error');
+      } finally {
+        setLoading(false);
       }
-      setSlugStatus({ checking: false, available: (data?.length ?? 0) === 0, touched: true });
-    }, 400);
-    return () => clearTimeout(t);
-  }, [form.business_slug, userId]);
+    };
+    loadProfile();
+  }, [navigate, showToast]);
 
-  async function uploadImage(file, kind) {
-    if (!file || !userId) return;
-    setUploading((u) => ({ ...u, [kind]: true }));
-    try {
-      const ext = file.name.split(".").pop();
-      const path = `${userId}/${kind}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase
-        .storage
-        .from(STORAGE_BUCKET)
-        .upload(path, file, { upsert: true, cacheControl: "3600" });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      const field = kind === "cover" ? "business_cover_url" : "business_logo_url";
-      setForm((prev) => ({ ...prev, [field]: pub.publicUrl }));
-    } catch (e) {
-      setMessage({
-        type: "error",
-        text: `No se pudo subir la imagen. Verifica el bucket '${STORAGE_BUCKET}' en Supabase Storage.`,
-      });
-    } finally {
-      setUploading((u) => ({ ...u, [kind]: false }));
-    }
-  }
-
-  async function handleSave(e) {
-    e?.preventDefault?.();
-    setMessage(null);
+  // ─── Save profile ────────────────────────────────────────
+  const handleSave = async () => {
     if (!userId) return;
-    if (!form.business_name.trim()) {
-      setMessage({ type: "error", text: "El nombre del negocio es obligatorio." });
-      return;
-    }
-    if (!form.business_slug) {
-      setMessage({ type: "error", text: "La URL pública (slug) es obligatoria." });
-      return;
-    }
-    if (!slugStatus.available) {
-      setMessage({ type: "error", text: "Ese slug ya está en uso. Elige otro." });
-      return;
-    }
-
     setSaving(true);
-    const payload = { id: userId, ...form, updated_at: new Date().toISOString() };
-    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
-    setSaving(false);
-    if (error) {
-      setMessage({ type: "error", text: "No se pudo guardar: " + error.message });
-    } else {
-      setMessage({ type: "success", text: "Perfil guardado correctamente." });
-    }
-  }
-
-  async function copyLink() {
-    if (!publicUrl) return;
     try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // noop
+      const updates = {
+        business_name: businessName.trim(),
+        business_slug: businessSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, ''),
+        business_description: businessDescription.trim(),
+        business_whatsapp: businessWhatsapp.trim(),
+        business_address: businessAddress.trim(),
+        business_department: businessDepartment,
+        business_city: businessCity.trim(),
+        business_template: businessTemplate,
+        business_headline: businessHeadline.trim(),
+        business_about: businessAbout.trim(),
+        business_schedule: businessSchedule.trim(),
+        business_primary_color: businessPrimaryColor,
+        business_logo_url: logoUrl,
+        business_cover_url: coverUrl,
+        business_services: JSON.stringify(businessServices),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId);
+
+      if (error) throw error;
+      showToast('¡Cambios guardados exitosamente!');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
     }
-  }
+  };
 
-  function shareWhatsApp() {
-    if (!publicUrl) return;
-    const text = encodeURIComponent(
-      `${form.business_name ? "👋 " + form.business_name + "\n" : ""}Visita mi tienda: ${publicUrl}`
-    );
-    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
-  }
+  // ─── Upload image ────────────────────────────────────────
+  const uploadImage = async (file, bucket, folder) => {
+    const ext = file.name.split('.').pop();
+    const fileName = `${folder}/${userId}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, file, { upsert: true });
+    if (error) throw error;
 
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(fileName);
+    return urlData.publicUrl;
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const url = await uploadImage(file, 'business-assets', 'covers');
+      setCoverUrl(url);
+      showToast('Portada actualizada');
+    } catch (err) {
+      showToast('Error subiendo portada: ' + err.message, 'error');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const url = await uploadImage(file, 'business-assets', 'logos');
+      setLogoUrl(url);
+      showToast('Logo actualizado');
+    } catch (err) {
+      showToast('Error subiendo logo: ' + err.message, 'error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // ─── Services ────────────────────────────────────────────
+  const addService = () => {
+    const val = newService.trim();
+    if (val && !businessServices.includes(val)) {
+      setBusinessServices([...businessServices, val]);
+      setNewService('');
+    }
+  };
+
+  const removeService = (svc) => {
+    setBusinessServices(businessServices.filter(s => s !== svc));
+  };
+
+  const handleServiceKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addService();
+    }
+  };
+
+  // ─── Copy slug ───────────────────────────────────────────
+  const copySlugUrl = () => {
+    const url = `${window.location.origin}/seller/${businessSlug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('¡Enlace copiado!');
+    });
+  };
+
+  // ─── Format price ────────────────────────────────────────
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return '';
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(price);
+  };
+
+  // ─── Loading State ───────────────────────────────────────
   if (loading) {
     return (
-      <div className="bp-loading">
-        <div className="bp-spinner" />
-        <p>Cargando perfil…</p>
-        <style>{baseStyles}</style>
+      <div className="bp-builder">
+        <div className="bp-loading">
+          <div className="bp-spinner" />
+          <p className="bp-loading-text">Cargando tu perfil de negocio...</p>
+        </div>
       </div>
     );
   }
 
+  // ─── RENDER ──────────────────────────────────────────────
   return (
-    <div className="bp-wrap">
-      <style>{baseStyles}</style>
-
-      {/* Portada + logo tipo Facebook */}
-      <section className="bp-cover-card">
-        <div
-          className="bp-cover"
-          style={{
-            backgroundImage: form.business_cover_url
-              ? `url(${form.business_cover_url})`
-              : "linear-gradient(135deg,#1f2937,#0f172a)",
-          }}
-        >
-          <label className="bp-cover-btn">
-            {uploading.cover ? "Subiendo…" : "📷 Cambiar portada"}
-            <input
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => uploadImage(e.target.files?.[0], "cover")}
-            />
-          </label>
+    <div className="bp-builder">
+      {/* ── Top Bar ─────────────────────────────────────── */}
+      <header className="bp-topbar">
+        <div className="bp-topbar-left">
+          <button className="bp-topbar-back" onClick={() => navigate('/dashboard')}>
+            ← Dashboard
+          </button>
+          <div>
+            <div className="bp-topbar-title">Editor de Página Web</div>
+            <div className="bp-topbar-subtitle">Personaliza tu presencia profesional en línea</div>
+          </div>
         </div>
-
-        <div className="bp-logo-row">
-          <div
-            className="bp-logo"
-            style={{
-              backgroundImage: form.business_logo_url ? `url(${form.business_logo_url})` : "none",
-              backgroundColor: form.business_logo_url ? "transparent" : "#e5e7eb",
-              borderColor: form.business_primary_color,
-            }}
+        <div className="bp-topbar-actions">
+          {businessSlug && (
+            <a
+              href={`/seller/${businessSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bp-topbar-preview"
+            >
+              👁 Vista previa
+            </a>
+          )}
+          <button
+            className="bp-topbar-save"
+            onClick={handleSave}
+            disabled={saving}
           >
-            {!form.business_logo_url && <span>🏪</span>}
-            <label className="bp-logo-btn" title="Cambiar logo">
-              {uploading.logo ? "…" : "📸"}
+            {saving ? '⏳ Guardando...' : '💾 Guardar cambios'}
+          </button>
+        </div>
+      </header>
+
+      {/* ── Layout ──────────────────────────────────────── */}
+      <div className="bp-layout">
+        {/* ── Main Content ─────────────────────────────── */}
+        <main className="bp-main">
+
+          {/* Hero & Logo */}
+          <div className="bp-card">
+            <div className="bp-card-header">
+              <div className="bp-card-icon">🖼</div>
+              <div>
+                <div className="bp-card-title">Imagen de Portada & Logo</div>
+                <div className="bp-card-desc">La primera impresión de tu negocio</div>
+              </div>
+            </div>
+
+            {/* Cover */}
+            <label className="bp-hero-preview">
               <input
                 type="file"
                 accept="image/*"
-                hidden
-                onChange={(e) => uploadImage(e.target.files?.[0], "logo")}
+                onChange={handleCoverUpload}
+                style={{ display: 'none' }}
               />
+              {coverUrl ? (
+                <>
+                  <img src={coverUrl} alt="Portada" />
+                  <div className="bp-hero-overlay">
+                    <span className="bp-hero-overlay-text">
+                      {uploadingCover ? '⏳ Subiendo...' : '📷 Cambiar portada'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="bp-hero-empty">
+                  <span className="bp-hero-empty-icon">🏞️</span>
+                  <span>{uploadingCover ? 'Subiendo...' : 'Clic para subir portada'}</span>
+                </div>
+              )}
             </label>
-          </div>
-          <div className="bp-logo-info">
-            <h1>{form.business_name || "Tu negocio"}</h1>
-            <p>{form.business_description || "Cuéntale al mundo lo que ofreces."}</p>
-          </div>
-        </div>
-      </section>
 
-      {/* URL pública en vivo + acciones */}
-      <section className="bp-card bp-url-card">
-        <div className="bp-url-head">
-          <div>
-            <span className="bp-label">Tu URL pública</span>
-            <div className="bp-url">
-              {publicUrl || <em className="bp-muted">Escribe el nombre del negocio para generar la URL…</em>}
-            </div>
-            <div className="bp-slug-status">
-              {slugStatus.checking && <span className="bp-muted">Verificando disponibilidad…</span>}
-              {!slugStatus.checking && form.business_slug && slugStatus.available && (
-                <span className="bp-ok">✓ Disponible</span>
+            {/* Logo */}
+            <label className="bp-logo-preview">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                style={{ display: 'none' }}
+              />
+              {logoUrl ? (
+                <>
+                  <img src={logoUrl} alt="Logo" />
+                  <div className="bp-logo-overlay">
+                    {uploadingLogo ? '⏳' : '📷'}
+                  </div>
+                </>
+              ) : (
+                <div className="bp-hero-empty" style={{ fontSize: 28 }}>
+                  {uploadingLogo ? '⏳' : '＋'}
+                </div>
               )}
-              {!slugStatus.checking && form.business_slug && !slugStatus.available && (
-                <span className="bp-err">✗ Ya está en uso</span>
-              )}
+            </label>
+
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--bp-text)', margin: '0 0 4px' }}>
+                {businessName || 'Nombre de tu negocio'}
+              </h2>
+              <p style={{ fontSize: 14, color: 'var(--bp-text-muted)', margin: 0 }}>
+                {businessHeadline || 'Tu eslogan o frase principal'}
+              </p>
             </div>
-          </div>
-        </div>
-        <div className="bp-actions">
-          <a
-            className="bp-btn bp-btn-primary"
-            href={publicUrl || "#"}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => { if (!publicUrl) e.preventDefault(); }}
-            style={{ background: form.business_primary_color }}
-          >
-            🌐 Ver mi web
-          </a>
-          <button type="button" className="bp-btn bp-btn-outline" onClick={copyLink} disabled={!publicUrl}>
-            {copied ? "✓ Copiado" : "🔗 Copiar link"}
-          </button>
-          <button
-            type="button"
-            className="bp-btn bp-btn-whats"
-            onClick={shareWhatsApp}
-            disabled={!publicUrl}
-          >
-            📱 Compartir por WhatsApp
-          </button>
-        </div>
-      </section>
 
-      {/* Formulario */}
-      <form className="bp-card" onSubmit={handleSave}>
-        <h2 className="bp-h2">Información del negocio</h2>
-
-        <div className="bp-grid">
-          <div className="bp-field">
-            <label>Nombre del negocio *</label>
-            <input
-              type="text"
-              value={form.business_name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Ej: Sumercé Market"
-              required
-            />
+            {/* Slug preview */}
+            {businessSlug && (
+              <div className="bp-slug-preview">
+                <div className="bp-slug-url">
+                  sumercemarket.com/seller/<strong>{businessSlug}</strong>
+                </div>
+                <button className="bp-slug-copy" onClick={copySlugUrl} type="button">
+                  Copiar enlace
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="bp-field">
-            <label>URL pública (slug) *</label>
-            <div className="bp-slug-input">
-              <span>/seller/</span>
+          {/* Información Principal */}
+          <div className="bp-card">
+            <div className="bp-card-header">
+              <div className="bp-card-icon">✏️</div>
+              <div>
+                <div className="bp-card-title">Información Principal</div>
+                <div className="bp-card-desc">Datos básicos de tu negocio</div>
+              </div>
+            </div>
+
+            <div className="bp-field-row">
+              <div className="bp-form-group">
+                <label className="bp-label">Nombre del negocio</label>
+                <input
+                  type="text"
+                  className="bp-input"
+                  placeholder="Ej: Mi Tienda Premium"
+                  value={businessName}
+                  onChange={e => setBusinessName(e.target.value)}
+                />
+              </div>
+              <div className="bp-form-group">
+                <label className="bp-label">Slug (URL)</label>
+                <input
+                  type="text"
+                  className="bp-input"
+                  placeholder="mi-tienda-premium"
+                  value={businessSlug}
+                  onChange={e => setBusinessSlug(
+                    e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="bp-form-group">
+              <label className="bp-label">Frase principal (headline)</label>
               <input
                 type="text"
-                value={form.business_slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="mi-negocio"
-                required
+                className="bp-input"
+                placeholder="Ej: Los mejores productos para tu hogar"
+                value={businessHeadline}
+                onChange={e => setBusinessHeadline(e.target.value)}
+              />
+            </div>
+
+            <div className="bp-form-group">
+              <label className="bp-label">Descripción corta</label>
+              <textarea
+                className="bp-textarea"
+                placeholder="Describe brevemente tu negocio..."
+                value={businessDescription}
+                onChange={e => setBusinessDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="bp-form-group">
+              <label className="bp-label">Sobre tu negocio</label>
+              <textarea
+                className="bp-textarea"
+                placeholder="Cuenta la historia y valores de tu negocio..."
+                value={businessAbout}
+                onChange={e => setBusinessAbout(e.target.value)}
+                rows={4}
               />
             </div>
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Titular destacado</label>
-            <input
-              type="text"
-              value={form.business_headline}
-              onChange={(e) => setForm({ ...form, business_headline: e.target.value })}
-              placeholder="Frase corta que enganche a tus clientes"
-            />
+          {/* Contacto y Ubicación */}
+          <div className="bp-card">
+            <div className="bp-card-header">
+              <div className="bp-card-icon">📍</div>
+              <div>
+                <div className="bp-card-title">Contacto & Ubicación</div>
+                <div className="bp-card-desc">¿Dónde te encuentran tus clientes?</div>
+              </div>
+            </div>
+
+            <div className="bp-field-row">
+              <div className="bp-form-group">
+                <label className="bp-label">WhatsApp</label>
+                <input
+                  type="text"
+                  className="bp-input"
+                  placeholder="573001234567"
+                  value={businessWhatsapp}
+                  onChange={e => setBusinessWhatsapp(e.target.value)}
+                />
+              </div>
+              <div className="bp-form-group">
+                <label className="bp-label">Dirección</label>
+                <input
+                  type="text"
+                  className="bp-input"
+                  placeholder="Calle 123 #45-67"
+                  value={businessAddress}
+                  onChange={e => setBusinessAddress(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bp-field-row">
+              <div className="bp-form-group">
+                <label className="bp-label">Departamento</label>
+                <select
+                  className="bp-select"
+                  value={businessDepartment}
+                  onChange={e => setBusinessDepartment(e.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {DEPARTMENTS.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="bp-form-group">
+                <label className="bp-label">Ciudad</label>
+                <input
+                  type="text"
+                  className="bp-input"
+                  placeholder="Ej: Bogotá"
+                  value={businessCity}
+                  onChange={e => setBusinessCity(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="bp-form-group">
+              <label className="bp-label">Horario de atención</label>
+              <input
+                type="text"
+                className="bp-input"
+                placeholder="Ej: Lun-Vie 8am-6pm, Sáb 9am-2pm"
+                value={businessSchedule}
+                onChange={e => setBusinessSchedule(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Descripción</label>
-            <textarea
-              rows={3}
-              value={form.business_description}
-              onChange={(e) => setForm({ ...form, business_description: e.target.value })}
-              placeholder="¿Qué hace especial a tu negocio?"
-            />
-          </div>
+          {/* Servicios */}
+          <div className="bp-card">
+            <div className="bp-card-header">
+              <div className="bp-card-icon">⭐</div>
+              <div>
+                <div className="bp-card-title">Servicios</div>
+                <div className="bp-card-desc">Agrega los servicios que ofreces</div>
+              </div>
+            </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Sobre el negocio</label>
-            <textarea
-              rows={4}
-              value={form.business_about}
-              onChange={(e) => setForm({ ...form, business_about: e.target.value })}
-              placeholder="Texto largo: historia, valores, equipo…"
-            />
-          </div>
-
-          <div className="bp-field">
-            <label>Tipo de negocio (plantilla)</label>
-            <select
-              value={form.business_template}
-              onChange={(e) => setForm({ ...form, business_template: e.target.value })}
-            >
-              {TEMPLATES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+            <div className="bp-services-input-wrap">
+              {businessServices.map((svc, i) => (
+                <span className="bp-service-tag" key={i}>
+                  {svc}
+                  <button
+                    className="bp-service-tag-remove"
+                    onClick={() => removeService(svc)}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
-            </select>
-          </div>
-
-          <div className="bp-field">
-            <label>Color principal</label>
-            <div className="bp-color">
-              <input
-                type="color"
-                value={form.business_primary_color}
-                onChange={(e) => setForm({ ...form, business_primary_color: e.target.value })}
-              />
               <input
                 type="text"
-                value={form.business_primary_color}
-                onChange={(e) => setForm({ ...form, business_primary_color: e.target.value })}
+                className="bp-services-input"
+                placeholder="Escribe y presiona Enter..."
+                value={newService}
+                onChange={e => setNewService(e.target.value)}
+                onKeyDown={handleServiceKeyDown}
               />
             </div>
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>WhatsApp (con código país)</label>
-            <input
-              type="tel"
-              value={form.business_whatsapp}
-              onChange={(e) => setForm({ ...form, business_whatsapp: e.target.value })}
-              placeholder="573001234567"
-            />
-            <small className="bp-hint">Se usa para los botones de contacto en tu web pública.</small>
+          {/* Catálogo / Ofertas */}
+          <div className="bp-card">
+            <div className="bp-card-header">
+              <div className="bp-card-icon">🛍</div>
+              <div>
+                <div className="bp-card-title">Mi Catálogo</div>
+                <div className="bp-card-desc">Ofertas publicadas en tu página</div>
+              </div>
+              <div style={{ marginLeft: 'auto' }}>
+                <span className="bp-catalog-count">{offers.length} ofertas</span>
+              </div>
+            </div>
+
+            {offers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <p style={{ fontSize: 40, marginBottom: 12 }}>📦</p>
+                <p style={{ color: 'var(--bp-text-muted)', fontSize: 15 }}>
+                  Aún no tienes ofertas publicadas.
+                </p>
+                <button
+                  className="bp-btn-secondary"
+                  style={{ width: 'auto', marginTop: 16 }}
+                  onClick={() => navigate('/create-offer')}
+                >
+                  ＋ Crear primera oferta
+                </button>
+              </div>
+            ) : (
+              <div className="bp-offer-grid">
+                {offers.map(offer => (
+                  <div
+                    className="bp-offer-card"
+                    key={offer.id}
+                    onClick={() => navigate(`/offers/${offer.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {offer.image_url ? (
+                      <img className="bp-offer-img" src={offer.image_url} alt={offer.title} />
+                    ) : (
+                      <div className="bp-offer-img" style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 36, color: 'var(--bp-text-muted)'
+                      }}>
+                        📷
+                      </div>
+                    )}
+                    <div className="bp-offer-body">
+                      <div className="bp-offer-title">{offer.title}</div>
+                      <div className="bp-offer-price">{formatPrice(offer.price)}</div>
+                      {offer.status && (
+                        <span className={`bp-offer-status ${offer.status}`}>
+                          {offer.status === 'active' ? '● Activa' :
+                           offer.status === 'paused' ? '⏸ Pausada' :
+                           offer.status === 'sold' ? '✓ Vendida' : offer.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Dirección / Ubicación</label>
-            <input
-              type="text"
-              value={form.business_address}
-              onChange={(e) => setForm({ ...form, business_address: e.target.value })}
-              placeholder="Calle 123 #45-67"
-            />
+        </main>
+
+        {/* ── Sidebar (Panel derecho) ──────────────────── */}
+        <aside className="bp-sidebar">
+
+          {/* Estado */}
+          <div className="bp-sidebar-section">
+            <div className="bp-sidebar-title">Estado</div>
+            {businessSlug ? (
+              <div className="bp-badge bp-badge-live">Página activa</div>
+            ) : (
+              <div className="bp-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                Sin slug configurado
+              </div>
+            )}
           </div>
 
-          <div className="bp-field">
-            <label>Departamento</label>
-            <input
-              type="text"
-              value={form.business_department}
-              onChange={(e) => setForm({ ...form, business_department: e.target.value })}
-              placeholder="Ej: Boyacá"
-            />
+          {/* Plantilla */}
+          <div className="bp-sidebar-section">
+            <div className="bp-sidebar-title">Plantilla</div>
+            <div className="bp-template-grid">
+              {TEMPLATES.map(t => (
+                <div
+                  key={t.id}
+                  className={`bp-template-option ${businessTemplate === t.id ? 'active' : ''}`}
+                  onClick={() => setBusinessTemplate(t.id)}
+                >
+                  <span className="bp-template-emoji">{t.emoji}</span>
+                  <span className="bp-template-name">{t.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="bp-field">
-            <label>Ciudad</label>
-            <input
-              type="text"
-              value={form.business_city}
-              onChange={(e) => setForm({ ...form, business_city: e.target.value })}
-              placeholder="Ej: Tunja"
-            />
+          {/* Color primario */}
+          <div className="bp-sidebar-section">
+            <div className="bp-sidebar-title">Color Principal</div>
+            <div className="bp-color-row">
+              <div className="bp-color-swatch" style={{ background: businessPrimaryColor }}>
+                <input
+                  type="color"
+                  value={businessPrimaryColor}
+                  onChange={e => setBusinessPrimaryColor(e.target.value)}
+                />
+              </div>
+              <span className="bp-color-hex">{businessPrimaryColor.toUpperCase()}</span>
+            </div>
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Horario de atención</label>
-            <input
-              type="text"
-              value={form.business_schedule}
-              onChange={(e) => setForm({ ...form, business_schedule: e.target.value })}
-              placeholder="Lun–Sáb 9:00 a 18:00"
-            />
+          {/* Acciones rápidas */}
+          <div className="bp-sidebar-section">
+            <div className="bp-sidebar-title">Acciones rápidas</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {businessSlug && (
+                <a
+                  href={`/seller/${businessSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bp-btn-secondary"
+                  style={{ textDecoration: 'none', textAlign: 'center' }}
+                >
+                  👁 Ver mi página web
+                </a>
+              )}
+              <button
+                className="bp-btn-secondary"
+                onClick={() => navigate('/create-offer')}
+              >
+                ＋ Nueva oferta
+              </button>
+              <button
+                className="bp-btn-secondary"
+                onClick={() => navigate('/my-offers')}
+              >
+                📋 Gestionar ofertas
+              </button>
+            </div>
           </div>
 
-          <div className="bp-field bp-col-2">
-            <label>Servicios / Lo que ofrecemos</label>
-            <textarea
-              rows={3}
-              value={form.business_services}
-              onChange={(e) => setForm({ ...form, business_services: e.target.value })}
-              placeholder="Sepáralos por coma. Ej: Asesoría, Envíos, Domicilios, Pagos con tarjeta"
-            />
-            <small className="bp-hint">Sepáralos por coma. Se mostrarán como tarjetas en tu web pública.</small>
+          {/* Guardar (sidebar) */}
+          <div className="bp-sidebar-section" style={{ marginTop: 'auto', paddingTop: 16 }}>
+            <button
+              className="bp-btn-primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? '⏳ Guardando...' : '💾 Guardar todos los cambios'}
+            </button>
           </div>
+
+        </aside>
+      </div>
+
+      {/* ── Toast ───────────────────────────────────────── */}
+      {toast && (
+        <div className={`bp-toast bp-toast-${toast.type}`}>
+          {toast.type === 'success' ? '✅' : '❌'} {toast.message}
         </div>
-
-        {message && (
-          <div className={`bp-msg ${message.type === "error" ? "bp-msg-err" : "bp-msg-ok"}`}>
-            {message.text}
-          </div>
-        )}
-
-        <div className="bp-save">
-          <button type="submit" className="bp-btn bp-btn-primary" disabled={saving} style={{ background: form.business_primary_color }}>
-            {saving ? "Guardando…" : "💾 Guardar cambios"}
-          </button>
-        </div>
-      </form>
+      )}
     </div>
   );
 }
-
-const baseStyles = `
-.bp-wrap{max-width:1080px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:20px;font-family:Inter,system-ui,sans-serif;color:#0f172a}
-.bp-loading{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#475569}
-.bp-spinner{width:36px;height:36px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:#2563eb;animation:bp-spin 1s linear infinite}
-@keyframes bp-spin{to{transform:rotate(360deg)}}
-.bp-cover-card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.06);border:1px solid #e5e7eb}
-.bp-cover{position:relative;height:240px;background-size:cover;background-position:center;display:flex;align-items:flex-end;justify-content:flex-end;padding:16px}
-.bp-cover-btn{background:rgba(0,0,0,.55);color:#fff;padding:8px 14px;border-radius:10px;font-size:14px;cursor:pointer;backdrop-filter:blur(6px);transition:transform .2s}
-.bp-cover-btn:hover{transform:translateY(-1px)}
-.bp-logo-row{display:flex;gap:18px;align-items:flex-end;padding:0 24px 20px;margin-top:-44px}
-.bp-logo{position:relative;width:120px;height:120px;border-radius:50%;border:4px solid #fff;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:0 6px 20px rgba(15,23,42,.15)}
-.bp-logo-btn{position:absolute;right:-2px;bottom:-2px;background:#0f172a;color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;border:2px solid #fff}
-.bp-logo-info{padding-bottom:6px}
-.bp-logo-info h1{margin:0;font-size:24px}
-.bp-logo-info p{margin:4px 0 0;color:#64748b;font-size:14px}
-.bp-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:22px;box-shadow:0 6px 20px rgba(15,23,42,.04)}
-.bp-url-card{display:flex;flex-direction:column;gap:14px}
-.bp-url-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
-.bp-label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:600}
-.bp-url{font-size:18px;font-weight:600;color:#0f172a;word-break:break-all;margin-top:4px}
-.bp-muted{color:#94a3b8;font-style:italic}
-.bp-slug-status{margin-top:6px;font-size:13px}
-.bp-ok{color:#16a34a;font-weight:600}
-.bp-err{color:#dc2626;font-weight:600}
-.bp-actions{display:flex;gap:10px;flex-wrap:wrap}
-.bp-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:none;cursor:pointer;font-weight:600;font-size:14px;transition:transform .15s,box-shadow .2s,opacity .2s;text-decoration:none}
-.bp-btn:disabled{opacity:.55;cursor:not-allowed}
-.bp-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(15,23,42,.12)}
-.bp-btn-primary{background:#2563eb;color:#fff}
-.bp-btn-outline{background:#fff;color:#0f172a;border:1px solid #cbd5e1}
-.bp-btn-whats{background:#25d366;color:#fff}
-.bp-h2{margin:0 0 16px;font-size:18px}
-.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
-.bp-field{display:flex;flex-direction:column;gap:6px}
-.bp-field label{font-size:13px;font-weight:600;color:#334155}
-.bp-field input,.bp-field textarea,.bp-field select{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s}
-.bp-field input:focus,.bp-field textarea:focus,.bp-field select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-.bp-col-2{grid-column:1 / -1}
-.bp-slug-input{display:flex;align-items:center;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fff}
-.bp-slug-input span{padding:0 10px;color:#64748b;background:#f1f5f9;font-size:14px;border-right:1px solid #e2e8f0;height:40px;display:flex;align-items:center}
-.bp-slug-input input{border:none;border-radius:0;flex:1}
-.bp-slug-input input:focus{box-shadow:none}
-.bp-color{display:flex;gap:8px;align-items:center}
-.bp-color input[type=color]{width:46px;height:40px;padding:2px;border-radius:8px;border:1px solid #cbd5e1;cursor:pointer}
-.bp-hint{color:#64748b;font-size:12px}
-.bp-msg{margin-top:14px;padding:10px 14px;border-radius:10px;font-size:14px}
-.bp-msg-ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
-.bp-msg-err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
-.bp-save{display:flex;justify-content:flex-end;margin-top:18px}
-@media (max-width:720px){
-  .bp-cover{height:170px}
-  .bp-logo{width:96px;height:96px;font-size:34px}
-  .bp-logo-row{flex-direction:column;align-items:flex-start;margin-top:-36px}
-  .bp-grid{grid-template-columns:1fr}
-}
-`;
