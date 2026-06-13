@@ -1,49 +1,43 @@
+import React from 'react';
+import StoreModule from './templates/StoreModule';
+
 /**
- * ModuleRenderer.jsx
- * -------------------------------------------------------------
- * Selector modular para la pagina publica del vendedor.
- * Escoge que modulo renderizar segun la plantilla (template)
- * del negocio. En FASE 1 solo existe StoreModule, que tambien
- * actua como fallback cuando la plantilla no esta definida o
- * no tiene un modulo propio todavia.
+ * ModuleRenderer
  *
- * Props:
- *   - seller: objeto del perfil del negocio (equivale a "profile").
- *   - offers: array de ofertas del vendedor.
- *   - template: string con la plantilla (business_template).
- *   - primaryColor: color de acento (business_primary_color).
+ * Renderiza el módulo visual de la página del vendedor según su plantilla.
  *
- * NOTA: este componente NO realiza queries ni toca Supabase.
- * Solo recibe datos ya cargados por la pagina contenedora.
- * -------------------------------------------------------------
+ * Plantillas soportadas:
+ *   store, fashion, beauty, health, gym, vehicles, food, services
+ *
+ * Mientras no existan módulos específicos para cada plantilla,
+ * TODAS usan StoreModule como fallback seguro para evitar crashes.
+ *
+ * Cuando se cree un módulo nuevo (ej. FashionModule.jsx),
+ * se agrega al templateMap y se importa con lazy().
  */
 
-import React from 'react';
-import StoreModule from './templates/StoreModule.jsx';
+const VALID_TEMPLATES = [
+  'store',
+  'fashion',
+  'beauty',
+  'health',
+  'gym',
+  'vehicles',
+  'food',
+  'services',
+];
 
-// Mapa de plantillas -> modulo. En FASE 1 solo "store".
-// Las demas plantillas se iran agregando en fases siguientes.
-const MODULES = {
-  store: StoreModule,
-  // food: FoodModule,      (FASE 2+)
-  // fashion: FashionModule,(FASE 2+)
-  // beauty: BeautyModule,  (FASE 2+)
-  // gym: GymModule,        (FASE 2+)
-  // vehicles: VehiclesModule,
-  // health: HealthModule,
-  // services: ServicesModule,
-};
+export default function ModuleRenderer({ template, seller, offers }) {
+  // Por ahora todos los templates renderizan StoreModule.
+  // Cuando se creen módulos específicos, se hará:
+  //   const templateMap = {
+  //     store: lazy(() => import('./templates/StoreModule')),
+  //     fashion: lazy(() => import('./templates/FashionModule')),
+  //     ...
+  //   };
+  //   const Component = templateMap[template] || StoreModule;
 
-export default function ModuleRenderer({ seller, offers = [], template, primaryColor }) {
-  // Normaliza la plantilla y aplica fallback a StoreModule.
-  const key = (template || '').toString().trim().toLowerCase();
-  const SelectedModule = MODULES[key] || StoreModule;
+  const Component = StoreModule;
 
-  return (
-    <SelectedModule
-      seller={seller}
-      offers={offers}
-      primaryColor={primaryColor}
-    />
-  );
+  return <Component seller={seller} offers={offers} />;
 }
