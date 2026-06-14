@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { compressImage } from '../components/ImageUploader';
 import '../styles/business-profile-builder.css';
 
 const STYLE_PRESETS = [
@@ -84,8 +85,87 @@ const STYLE_PRESETS = [
     btnBg: '#84cc16',
     btnText: '#ffffff',
     font: 'Calibri'
+  },
+  {
+    name: 'Motos Deportivas',
+    primary: '#ef4444',
+    bg: '#090d16',
+    text: '#f8fafc',
+    btnBg: '#ef4444',
+    btnText: '#ffffff',
+    font: 'Montserrat'
+  },
+  {
+    name: 'Carros Premium',
+    primary: '#fbbf24',
+    bg: '#0f172a',
+    text: '#f8fafc',
+    btnBg: '#fbbf24',
+    btnText: '#0f172a',
+    font: 'Outfit'
+  },
+  {
+    name: 'Moda Rosa',
+    primary: '#ec4899',
+    bg: '#fffbfb',
+    text: '#3d0a21',
+    btnBg: '#ec4899',
+    btnText: '#ffffff',
+    font: 'Raleway'
+  },
+  {
+    name: 'Spa Menta',
+    primary: '#0d9488',
+    bg: '#f5fcf9',
+    text: '#115e59',
+    btnBg: '#0d9488',
+    btnText: '#ffffff',
+    font: 'Inter'
+  },
+  {
+    name: 'Belleza Glam',
+    primary: '#881337',
+    bg: '#faf7f5',
+    text: '#4c0519',
+    btnBg: '#881337',
+    btnText: '#ffffff',
+    font: 'Playfair Display'
+  },
+  {
+    name: 'Calzado Urbano',
+    primary: '#eab308',
+    bg: '#1e1e24',
+    text: '#f4f4f5',
+    btnBg: '#eab308',
+    btnText: '#1e1e24',
+    font: 'Bebas Neue'
+  },
+  {
+    name: 'Tecnología Neón',
+    primary: '#06b6d4',
+    bg: '#030712',
+    text: '#f3f4f6',
+    btnBg: '#06b6d4',
+    btnText: '#030712',
+    font: 'Inter'
+  },
+  {
+    name: 'Panadería Artesanal',
+    primary: '#b45309',
+    bg: '#fdfaf2',
+    text: '#78350f',
+    btnBg: '#b45309',
+    btnText: '#ffffff',
+    font: 'Outfit'
   }
 ];
+
+const getTemplateLayout = (templateId) => {
+  if (['motos', 'cars', 'vehicles'].includes(templateId)) return 'automotive';
+  if (['beauty', 'fashion', 'clothing'].includes(templateId)) return 'elegant';
+  if (['services', 'health', 'gym', 'veterinary'].includes(templateId)) return 'services';
+  return 'retail';
+};
 
 const FONTS = [
   // === Sistema / Word ===
@@ -303,6 +383,8 @@ export default function BusinessProfile() {
   const [coverFit, setCoverFit] = useState('cover');
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('form');
 
+  const layout = getTemplateLayout(businessTemplate);
+
   const applyPreset = (preset) => {
     setBusinessPrimaryColor(preset.primary);
     setBusinessBgColor(preset.bg);
@@ -322,6 +404,21 @@ export default function BusinessProfile() {
   const [offers, setOffers] = useState([]);
   const [uploadingOfferId, setUploadingOfferId] = useState(null);
   const offerFileRefs = useRef({});
+  const [selectedOfferForImages, setSelectedOfferForImages] = useState(null);
+
+  const handleRefreshOffers = async () => {
+    if (!userId) return;
+    try {
+      const { data: offerData } = await supabase
+        .from('offers')
+        .select('id, title, price, image_url, status, offer_images(id, url, path, position)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      setOffers(offerData || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -427,7 +524,7 @@ export default function BusinessProfile() {
         // Load offers
         const { data: offerData } = await supabase
           .from('offers')
-          .select('id, title, price, image_url, status')
+          .select('id, title, price, image_url, status, offer_images(id, url, path, position)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
@@ -1370,6 +1467,21 @@ export default function BusinessProfile() {
                           </span>
                         )}
                       </div>
+
+                      {/* ── Botón gestionar múltiples fotos ── */}
+                      <div className="bp-offer-card-actions" style={{ padding: '0 12px 12px', display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="bp-btn-secondary"
+                          style={{ flex: 1, padding: '6px 8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOfferForImages(offer);
+                          }}
+                        >
+                          🖼️ Fotos ({offer.offer_images?.length || 0})
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1395,184 +1507,238 @@ export default function BusinessProfile() {
                 color: businessTextColor
               }}
             >
-              <div className="phone-shop-wrap">
-                {/* 1. Header Banner */}
-                <div className="phone-shop-banner" style={{ background: '#0f172a' }}>
-                  {coverUrl ? (
-                    coverFit === 'contain' ? (
-                      <div className="phone-shop-banner-contain-wrap">
-                        <div className="phone-shop-banner-contain-blur" style={{ backgroundImage: `url(${coverUrl})` }} />
-                        <img src={coverUrl} className="phone-shop-banner-contain-img" alt="Portada" />
-                      </div>
-                    ) : (
-                      <img
-                        src={coverUrl}
-                        className="phone-shop-banner-cover-img"
-                        style={{
-                          transform: `scale(${coverZoom / 100})`,
-                          objectPosition: `${coverPositionX}% ${coverPositionY}%`,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                        alt="Portada"
-                      />
-                    )
-                  ) : (
-                    <div className="phone-shop-banner-empty">🏪</div>
-                  )}
-                  <div className="phone-shop-banner-overlay" />
-                </div>
-
-                {/* 2. Logo & Basic Meta */}
-                <div className="phone-shop-header-info">
-                  <div className="phone-shop-logo-wrap">
-                    {logoUrl ? (
-                      <img src={logoUrl} className="phone-shop-logo" alt="Logo" />
-                    ) : (
-                      <div className="phone-shop-logo-empty">🏪</div>
-                    )}
-                  </div>
-
-                  <div className="phone-shop-meta">
-                    <div className="phone-shop-badge" style={{ color: businessPrimaryColor, borderColor: `${businessPrimaryColor}50`, background: `${businessPrimaryColor}10` }}>
-                      <span className="phone-shop-badge-dot" style={{ background: businessPrimaryColor }} />
-                      Tienda Verificada
+              <div className={`phone-shop-wrap phone-shop-layout-${layout}`}>
+                {(() => {
+                  const partBanner = (
+                    <div className="phone-shop-banner" style={{ background: '#0f172a' }}>
+                      {coverUrl ? (
+                        coverFit === 'contain' ? (
+                          <div className="phone-shop-banner-contain-wrap">
+                            <div className="phone-shop-banner-contain-blur" style={{ backgroundImage: `url(${coverUrl})` }} />
+                            <img src={coverUrl} className="phone-shop-banner-contain-img" alt="Portada" />
+                          </div>
+                        ) : (
+                          <img
+                            src={coverUrl}
+                            className="phone-shop-banner-cover-img"
+                            style={{
+                              transform: `scale(${coverZoom / 100})`,
+                              objectPosition: `${coverPositionX}% ${coverPositionY}%`,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                            alt="Portada"
+                          />
+                        )
+                      ) : (
+                        <div className="phone-shop-banner-empty">🏪</div>
+                      )}
+                      <div className="phone-shop-banner-overlay" />
                     </div>
-                    <h1
-                      contentEditable
-                      suppressContentEditableWarning
-                      onBlur={e => setBusinessName(e.target.innerText)}
-                      className="phone-shop-title"
-                      style={{ fontFamily: businessFontFamily }}
-                    >
-                      {businessName || 'Nombre de tu negocio'}
-                    </h1>
-                    <p
-                      contentEditable
-                      suppressContentEditableWarning
-                      onBlur={e => setBusinessHeadline(e.target.innerText)}
-                      className="phone-shop-headline"
-                    >
-                      {businessHeadline || 'Tu eslogan o frase principal'}
-                    </p>
-                  </div>
-                </div>
+                  );
 
-                {/* 3. About section */}
-                <div className="phone-shop-section">
-                  <div className="phone-shop-section-title">Sobre nosotros</div>
-                  <div className="phone-shop-about-card" style={{ borderLeftColor: businessPrimaryColor }}>
-                    <p
-                      contentEditable
-                      suppressContentEditableWarning
-                      onBlur={e => setBusinessAbout(e.target.innerText)}
-                      className="phone-shop-about-text"
-                    >
-                      {businessAbout || 'Cuenta la historia y valores de tu negocio aquí...'}
-                    </p>
-                  </div>
-                </div>
+                  const partHeaderInfo = (
+                    <div className={`phone-shop-header-info phone-shop-layout-${layout}`}>
+                      <div className="phone-shop-logo-wrap">
+                        {logoUrl ? (
+                          <img src={logoUrl} className="phone-shop-logo" alt="Logo" />
+                        ) : (
+                          <div className="phone-shop-logo-empty">🏪</div>
+                        )}
+                      </div>
 
-                {/* 4. Services section */}
-                <div className="phone-shop-section">
-                  <div className="phone-shop-section-title">Nuestros Servicios</div>
-                  <div className="phone-shop-services-grid">
-                    {(businessServices.length > 0 ? businessServices : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store)).map((svc, i) => (
-                      <div key={i} className="phone-shop-service-card" style={{ borderBottomColor: `${businessPrimaryColor}20` }}>
-                        <span className="phone-shop-service-icon">{svc.icon || '✨'}</span>
-                        <h3
+                      <div className="phone-shop-meta">
+                        <div className="phone-shop-badge" style={{ color: businessPrimaryColor, borderColor: `${businessPrimaryColor}50`, background: `${businessPrimaryColor}10` }}>
+                          <span className="phone-shop-badge-dot" style={{ background: businessPrimaryColor }} />
+                          Tienda Verificada
+                        </div>
+                        <h1
                           contentEditable
                           suppressContentEditableWarning
-                          onBlur={e => {
-                            const currentList = businessServices.length > 0 
-                              ? [...businessServices] 
-                              : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store).map(item => ({ ...item }));
-                            currentList[i] = { ...currentList[i], title: e.target.innerText };
-                            setBusinessServices(currentList);
-                          }}
+                          onBlur={e => setBusinessName(e.target.innerText)}
+                          className="phone-shop-title"
+                          style={{ fontFamily: businessFontFamily }}
                         >
-                          {svc.title || 'Servicio'}
-                        </h3>
+                          {businessName || 'Nombre de tu negocio'}
+                        </h1>
                         <p
                           contentEditable
                           suppressContentEditableWarning
-                          onBlur={e => {
-                            const currentList = businessServices.length > 0 
-                              ? [...businessServices] 
-                              : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store).map(item => ({ ...item }));
-                            currentList[i] = { ...currentList[i], desc: e.target.innerText };
-                            setBusinessServices(currentList);
-                          }}
+                          onBlur={e => setBusinessHeadline(e.target.innerText)}
+                          className="phone-shop-headline"
                         >
-                          {svc.desc || 'Descripción...'}
+                          {businessHeadline || 'Tu eslogan o frase principal'}
                         </p>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  );
 
-                {/* 5. Additional tags */}
-                {businessTags.length > 0 && (
-                  <div className="phone-shop-tags-wrap">
-                    {businessTags.map((tag, i) => (
-                      <span key={i} className="phone-shop-tag" style={{ color: businessPrimaryColor, borderColor: `${businessPrimaryColor}40`, background: `${businessPrimaryColor}10` }}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                  const partAbout = (
+                    <div className="phone-shop-section">
+                      <div className="phone-shop-section-title">Sobre nosotros</div>
+                      <div className="phone-shop-about-card" style={{ borderLeftColor: businessPrimaryColor }}>
+                        <p
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={e => setBusinessAbout(e.target.innerText)}
+                          className="phone-shop-about-text"
+                        >
+                          {businessAbout || 'Cuenta la historia y valores de tu negocio aquí...'}
+                        </p>
+                      </div>
+                    </div>
+                  );
 
-                {/* 6. Products section */}
-                <div className="phone-shop-section">
-                  <div className="phone-shop-section-title">Productos destacados</div>
-                  {offers.length === 0 ? (
-                    <div className="phone-shop-empty-catalog">Aún no hay productos en catálogo</div>
-                  ) : (
-                    <div className="phone-shop-offers-list">
-                      {offers.slice(0, 3).map((offer, idx) => (
-                        <div key={offer.id || idx} className="phone-shop-offer-item">
-                          <div className="phone-shop-offer-img" style={{ backgroundImage: offer.image_url ? `url(${offer.image_url})` : 'none' }}>
-                            {!offer.image_url && '🛍️'}
+                  const partServices = (
+                    <div className="phone-shop-section">
+                      <div className="phone-shop-section-title">Nuestros Servicios</div>
+                      <div className="phone-shop-services-grid">
+                        {(businessServices.length > 0 ? businessServices : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store)).map((svc, i) => (
+                          <div key={i} className="phone-shop-service-card" style={{ borderBottomColor: `${businessPrimaryColor}20` }}>
+                            <span className="phone-shop-service-icon">{svc.icon || '✨'}</span>
+                            <h3
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={e => {
+                                const currentList = businessServices.length > 0 
+                                  ? [...businessServices] 
+                                  : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store).map(item => ({ ...item }));
+                                currentList[i] = { ...currentList[i], title: e.target.innerText };
+                                setBusinessServices(currentList);
+                              }}
+                            >
+                              {svc.title || 'Servicio'}
+                            </h3>
+                            <p
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={e => {
+                                const currentList = businessServices.length > 0 
+                                  ? [...businessServices] 
+                                  : (TEMPLATE_SERVICES[businessTemplate] || TEMPLATE_SERVICES.store).map(item => ({ ...item }));
+                                currentList[i] = { ...currentList[i], desc: e.target.innerText };
+                                setBusinessServices(currentList);
+                              }}
+                            >
+                              {svc.desc || 'Descripción...'}
+                            </p>
                           </div>
-                          <div className="phone-shop-offer-details">
-                            <div className="phone-shop-offer-name">{offer.title}</div>
-                            <div className="phone-shop-offer-price" style={{ color: businessPrimaryColor }}>{formatPrice(offer.price)}</div>
-                          </div>
-                        </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+
+                  const partTags = businessTags.length > 0 && (
+                    <div className="phone-shop-tags-wrap">
+                      {businessTags.map((tag, i) => (
+                        <span key={i} className="phone-shop-tag" style={{ color: businessPrimaryColor, borderColor: `${businessPrimaryColor}40`, background: `${businessPrimaryColor}10` }}>
+                          {tag}
+                        </span>
                       ))}
                     </div>
-                  )}
-                </div>
+                  );
 
-                {/* 7. Contact Details */}
-                <div className="phone-shop-section phone-shop-contact">
-                  {businessSchedule && (
-                    <div className="phone-shop-info-row">
-                      <span>⏰ Horario:</span>
-                      <strong>{businessSchedule}</strong>
+                  const partOffers = (
+                    <div className="phone-shop-section">
+                      <div className="phone-shop-section-title">
+                        {layout === 'automotive' ? 'Vehículos / Motos destacados' : 'Productos destacados'}
+                      </div>
+                      {offers.length === 0 ? (
+                        <div className="phone-shop-empty-catalog">Aún no hay productos en catálogo</div>
+                      ) : (
+                        <div className="phone-shop-offers-list">
+                          {offers.slice(0, 3).map((offer, idx) => (
+                            <div key={offer.id || idx} className="phone-shop-offer-item">
+                              <div className="phone-shop-offer-img" style={{ backgroundImage: offer.image_url ? `url(${offer.image_url})` : 'none' }}>
+                                {!offer.image_url && '🛍️'}
+                              </div>
+                              <div className="phone-shop-offer-details">
+                                <div className="phone-shop-offer-name">{offer.title}</div>
+                                <div className="phone-shop-offer-price" style={{ color: businessPrimaryColor }}>{formatPrice(offer.price)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {(businessAddress || businessCity) && (
-                    <div className="phone-shop-info-row">
-                      <span>📍 Ubicación:</span>
-                      <strong>{businessAddress} {businessCity && `, ${businessCity}`}</strong>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="phone-shop-wa-btn"
-                    style={{ backgroundColor: businessBtnBgColor, color: businessBtnTextColor }}
-                  >
-                    💬 Contactar por WhatsApp
-                  </button>
-                </div>
+                  );
 
-                {/* 8. Footer */}
-                <div className="phone-shop-footer">
-                  <p>{businessName || 'Tu Negocio'}</p>
-                  <span>© {new Date().getFullYear()} · Súmercé Market</span>
-                </div>
+                  const partContact = (
+                    <div className="phone-shop-section phone-shop-contact">
+                      {businessSchedule && (
+                        <div className="phone-shop-info-row">
+                          <span>⏰ Horario:</span>
+                          <strong>{businessSchedule}</strong>
+                        </div>
+                      )}
+                      {(businessAddress || businessCity) && (
+                        <div className="phone-shop-info-row">
+                          <span>📍 Ubicación:</span>
+                          <strong>{businessAddress} {businessCity && `, ${businessCity}`}</strong>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="phone-shop-wa-btn"
+                        style={{ backgroundColor: businessBtnBgColor, color: businessBtnTextColor }}
+                      >
+                        💬 Contactar por WhatsApp
+                      </button>
+                    </div>
+                  );
+
+                  const partFooter = (
+                    <div className="phone-shop-footer">
+                      <p>{businessName || 'Tu Negocio'}</p>
+                      <span>© {new Date().getFullYear()} · Súmercé Market</span>
+                    </div>
+                  );
+
+                  if (layout === 'elegant') {
+                    return (
+                      <>
+                        {partBanner}
+                        {partHeaderInfo}
+                        {partAbout}
+                        {partServices}
+                        {partTags}
+                        {partOffers}
+                        {partContact}
+                        {partFooter}
+                      </>
+                    );
+                  }
+
+                  if (layout === 'services') {
+                    return (
+                      <>
+                        {partBanner}
+                        {partHeaderInfo}
+                        {partServices}
+                        {partTags}
+                        {partAbout}
+                        {partContact}
+                        {partOffers}
+                        {partFooter}
+                      </>
+                    );
+                  }
+
+                  // Default layouts (retail / automotive)
+                  return (
+                    <>
+                      {partBanner}
+                      {partHeaderInfo}
+                      {partOffers}
+                      {partServices}
+                      {partTags}
+                      {partAbout}
+                      {partContact}
+                      {partFooter}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1793,6 +1959,17 @@ export default function BusinessProfile() {
         </aside>
       </div>
 
+      {/* ── Manage Offer Images Modal ──────────────────── */}
+      {selectedOfferForImages && (
+        <ManageOfferImagesModal
+          offer={selectedOfferForImages}
+          onClose={() => setSelectedOfferForImages(null)}
+          userId={userId}
+          showToast={showToast}
+          onRefresh={handleRefreshOffers}
+        />
+      )}
+
       {/* ── Toast ───────────────────────────────────────── */}
       {toast && (
         <div className={`bp-toast bp-toast-${toast.type}`}>
@@ -1803,6 +1980,205 @@ export default function BusinessProfile() {
           {toast.message}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Manage Offer Images Modal Component ───────────────────
+function ManageOfferImagesModal({ offer, onClose, userId, showToast, onRefresh }) {
+  const [images, setImages] = useState(offer.offer_images || []);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const loadLatestImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('offer_images')
+        .select('*')
+        .eq('offer_id', offer.id)
+        .order('position', { ascending: true });
+      if (error) throw error;
+      setImages(data || []);
+    } catch (err) {
+      console.error(err);
+      showToast('Error cargando imágenes', 'error');
+    }
+  };
+
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    setUploading(true);
+    try {
+      const BUCKET = 'offer-images';
+      const maxPosition = images.reduce((max, img) => img.position > max ? img.position : max, -1);
+      
+      const newImageRows = [];
+      let firstNewPublicUrl = null;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        let optimized = file;
+        try {
+          optimized = await compressImage(file);
+        } catch (err) {
+          console.warn('Compression failed, using original', err);
+        }
+
+        const ext = optimized.name.split('.').pop() || 'jpg';
+        const path = `${userId}/${offer.id}/${Date.now()}-${i}.${ext}`;
+        const contentType = optimized.type || 'image/jpeg';
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, optimized, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+        const publicUrl = urlData.publicUrl;
+        
+        if (i === 0) firstNewPublicUrl = publicUrl;
+
+        newImageRows.push({
+          offer_id: offer.id,
+          url: publicUrl,
+          path: path,
+          position: maxPosition + 1 + i
+        });
+      }
+
+      if (newImageRows.length > 0) {
+        const { error: insertError } = await supabase
+          .from('offer_images')
+          .insert(newImageRows);
+        if (insertError) throw insertError;
+      }
+
+      if (!offer.image_url && firstNewPublicUrl) {
+        const { error: updateError } = await supabase
+          .from('offers')
+          .update({ image_url: firstNewPublicUrl })
+          .eq('id', offer.id);
+        if (updateError) throw updateError;
+      }
+
+      showToast('Imágenes subidas exitosamente');
+      await loadLatestImages();
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al subir imágenes: ' + err.message, 'error');
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleDelete = async (img) => {
+    const confirm = window.confirm('¿Estás seguro de que deseas eliminar esta imagen?');
+    if (!confirm) return;
+
+    setDeletingId(img.id);
+    try {
+      const { error: dbError } = await supabase
+        .from('offer_images')
+        .delete()
+        .eq('id', img.id);
+      if (dbError) throw dbError;
+
+      const { error: storageError } = await supabase.storage
+        .from('offer-images')
+        .remove([img.path]);
+      if (storageError) {
+        console.warn('Storage deletion failed, continuing', storageError);
+      }
+
+      if (offer.image_url === img.url) {
+        const remainingImages = images.filter(i => i.id !== img.id);
+        const nextMainUrl = remainingImages.length > 0 ? remainingImages[0].url : null;
+        
+        const { error: updateError } = await supabase
+          .from('offers')
+          .update({ image_url: nextMainUrl })
+          .eq('id', offer.id);
+        if (updateError) throw updateError;
+      }
+
+      showToast('Imagen eliminada');
+      await loadLatestImages();
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al eliminar imagen: ' + err.message, 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="bp-modal-backdrop" onClick={onClose}>
+      <div className="bp-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="bp-modal-header">
+          <h3>Gestionar imágenes</h3>
+          <button className="bp-modal-close" onClick={onClose}>✕</button>
+        </div>
+        
+        <div className="bp-modal-body">
+          <p className="bp-modal-offer-title">{offer.title}</p>
+          {images.length === 0 ? (
+            <div className="bp-modal-empty">
+              <span style={{ fontSize: '48px' }}>📷</span>
+              <p>Esta oferta no tiene fotos adicionales aún.</p>
+            </div>
+          ) : (
+            <div className="bp-modal-image-grid">
+              {images.map((img) => (
+                <div className="bp-modal-image-card" key={img.id}>
+                  <img src={img.url} alt="Producto" />
+                  {img.url === offer.image_url && (
+                    <span className="bp-modal-image-badge">Principal</span>
+                  )}
+                  <button
+                    className="bp-modal-image-delete"
+                    disabled={deletingId === img.id}
+                    onClick={() => handleDelete(img)}
+                  >
+                    {deletingId === img.id ? '...' : '✕'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="bp-modal-upload-section">
+            <label className="bp-modal-upload-btn">
+              {uploading ? (
+                <span>⏳ Subiendo y optimizando...</span>
+              ) : (
+                <>
+                  <span>➕ Seleccionar Fotos</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleUpload}
+                    disabled={uploading}
+                    style={{ display: 'none' }}
+                  />
+                </>
+              )}
+            </label>
+            <p className="bp-modal-upload-hint">Puedes seleccionar varias fotos. Formatos JPG, PNG, WebP.</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -60,10 +60,14 @@
 .sm-section {
   font-family: var(--smt2-font);
   width: 100%;
+  padding: clamp(24px, 5vw, 56px) 0;
+  animation: smt2FadeUp 0.55s var(--smt2-ease-soft) both;
+}
+
+.sm-section-inner {
   max-width: 1200px;
   margin-inline: auto;
-  padding: clamp(24px, 5vw, 56px) clamp(20px, 4vw, 64px);
-  animation: smt2FadeUp 0.55s var(--smt2-ease-soft) both;
+  padding-inline: clamp(20px, 4vw, 64px);
 }
 
 /* ==========================================================================
@@ -173,8 +177,8 @@
 }
 .sm-benefit-card {
   font-family: var(--smt2-font);
-  background: var(--smt2-glass);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: var(--sm-glass, var(--smt2-glass));
+  border: 1px solid var(--sm-border, rgba(255, 255, 255, 0.5));
   border-radius: 20px;
   padding: clamp(20px, 3vw, 28px);
   box-shadow: var(--smt2-shadow-soft);
@@ -216,8 +220,8 @@
   font-family: var(--smt2-font);
   display: flex;
   flex-direction: column;
-  background: var(--smt2-surface-card);
-  border: 1px solid var(--smt2-border);
+  background: var(--sm-surface-card, var(--smt2-surface-card));
+  border: 1px solid var(--sm-border, var(--smt2-border));
   border-radius: 24px;
   overflow: hidden;
   box-shadow: var(--smt2-shadow-soft);

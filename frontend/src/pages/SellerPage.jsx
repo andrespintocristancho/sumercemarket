@@ -152,6 +152,13 @@ function buildFullAddress(profile) {
     .join(", ");
 }
 
+const getTemplateLayout = (templateId) => {
+  if (['motos', 'cars', 'vehicles'].includes(templateId)) return 'automotive';
+  if (['beauty', 'fashion', 'clothing'].includes(templateId)) return 'elegant';
+  if (['services', 'health', 'gym', 'veterinary'].includes(templateId)) return 'services';
+  return 'retail';
+};
+
 export default function SellerPage() {
   const { slug } = useParams();
   const [loading, setLoading] = useState(true);
@@ -178,7 +185,7 @@ export default function SellerPage() {
 
       const { data: offs } = await supabase
         .from("offers")
-        .select("*")
+        .select("*, offer_images (id, url, path, position)")
         .eq("user_id", prof.id)
         .eq("status", "active")
         .order("created_at", { ascending: false });
@@ -377,14 +384,182 @@ export default function SellerPage() {
     );
   }
 
+  /* ───── Dynamic section rendering based on template layout ───── */
+  const layout = getTemplateLayout(profile.business_template);
+
+  // Section: About
+  const sectionAbout = (profile.business_about || profile.business_description) ? (
+    <section key="about" className="sp-section sp-section-about sp-slide-up">
+      <div className="sp-section-inner">
+        <div className="sp-section-head">
+          <span className="sp-section-label">Nuestra historia</span>
+          <h2>Sobre nosotros</h2>
+          <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
+        </div>
+        <div className="sp-about-card" style={{ borderColor: hexToRgba(primary, 0.14) }}>
+          <div className="sp-about-accent" style={{ background: `linear-gradient(180deg, ${primary}, ${hexToRgba(primary, 0.4)})` }} aria-hidden="true" />
+          <div className="sp-about-quote-mark" style={{ color: hexToRgba(primary, 0.18) }} aria-hidden="true">&ldquo;</div>
+          <p className="sp-about">{profile.business_about || profile.business_description}</p>
+        </div>
+      </div>
+    </section>
+  ) : null;
+
+  // Section: Services
+  const sectionServices = services.length > 0 ? (
+    <section key="services" className="sp-section sp-section-services sp-slide-up">
+      <div className="sp-section-inner">
+        <div className="sp-section-head">
+          <span className="sp-section-label">Lo que hacemos</span>
+          <h2>Nuestros Servicios</h2>
+          <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
+        </div>
+        <div className="sp-cards">
+          {services.map((s, i) => (
+            <article key={i} className="sp-card sp-card-service" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
+                <span className="sp-card-icon-emoji">{s.icon}</span>
+              </div>
+              <h3>{s.title}</h3>
+              <p>{s.desc}</p>
+              <div className="sp-card-accent-line" style={{ background: primary }} aria-hidden="true" />
+            </article>
+          ))}
+        </div>
+        {servicesList.length > 0 && (
+          <div className="sp-tags">
+            {servicesList.map((t, i) => (
+              <span key={i} className="sp-tag" style={{ borderColor: hexToRgba(primary, 0.3), color: primary, background: hexToRgba(primary, 0.06) }}>
+                <span style={{ color: primary }}>✓</span> {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  ) : null;
+
+  // Section: Featured offers (top 3)
+  const sectionFeatured = featured.length > 0 ? (
+    <section key="featured" className="sp-section sp-slide-up">
+      <div className="sp-section-inner">
+        <div className="sp-section-head">
+          <span className="sp-section-label">Top picks</span>
+          <h2>Ofertas destacadas</h2>
+          <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
+        </div>
+        <div className="sp-cards sp-cards-featured">
+          {featured.map((o, i) => (
+            <OfferCard key={o.id} offer={o} primary={primary} delay={i * 80} waLink={waLink} featured />
+          ))}
+        </div>
+      </div>
+    </section>
+  ) : null;
+
+  // Section: Catalog
+  const sectionCatalog = (
+    <section key="catalog" id="ofertas" className="sp-section sp-section-alt sp-slide-up">
+      <div className="sp-section-inner">
+        <div className="sp-section-head">
+          <span className="sp-section-label">Toda la selección</span>
+          <h2>Catálogo de Activos</h2>
+          <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
+        </div>
+        {offers.length === 0 ? (
+          <div className="sp-empty">
+            <div className="sp-empty-icon">🛒</div>
+            <h3>Aún no hay ofertas activas</h3>
+            <p>Muy pronto publicaremos novedades. Escríbenos para conocer más.</p>
+            {waLink() && (
+              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary" style={{ background: primary }}>
+                Contactar por WhatsApp
+              </a>
+            )}
+          </div>
+        ) : catalog.length === 0 && featured.length > 0 ? (
+          <div className="sp-empty">
+            <div className="sp-empty-icon">✨</div>
+            <h3>Ya viste nuestras ofertas destacadas</h3>
+            <p>Estas son todas las ofertas activas por ahora. Pronto habrá más novedades.</p>
+            {waLink() && (
+              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary" style={{ background: primary }}>
+                Contactar por WhatsApp
+              </a>
+            )}
+          </div>
+        ) : (
+          <div className="sp-cards">
+            {(catalog.length > 0 ? catalog : offers).map((o, i) => (
+              <OfferCard key={o.id} offer={o} primary={primary} delay={i * 60} waLink={waLink} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+
+  // Section: Info (Hours & Location)
+  const sectionInfo = (profile.business_schedule || fullAddress) ? (
+    <section key="info" className="sp-section sp-slide-up" style={{ paddingBottom: 60 }}>
+      <div className="sp-section-inner">
+        <div className="sp-hours-location-grid">
+          {profile.business_schedule && (
+            <div className="sp-hours-card">
+              <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <h3>Horarios de Atención</h3>
+              <div className="sp-hours-content">
+                <p className="sp-hours-text">{profile.business_schedule}</p>
+              </div>
+            </div>
+          )}
+          {fullAddress && (
+            <div className="sp-location-card">
+              <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <h3>Ubicación</h3>
+              <p className="sp-location-address">{fullAddress}</p>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="sp-btn sp-btn-secondary"
+                style={{ marginTop: 16, width: 'fit-content' }}
+              >
+                Ver en Google Maps →
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  ) : null;
+
+  /* ───── Layout order maps ─────
+   * automotive (motos, cars, vehicles):  Catalog → Services → About → Info
+   * elegant   (beauty, fashion, clothing): About → Services → Catalog → Info
+   * services  (services, health, gym, vet): Services → About → Info → Catalog
+   * retail    (default):                    Featured → Catalog → Services → About → Info
+   */
+  const LAYOUT_ORDERS = {
+    automotive: [sectionCatalog, sectionFeatured, sectionServices, sectionAbout, sectionInfo],
+    elegant:    [sectionAbout, sectionServices, sectionFeatured, sectionCatalog, sectionInfo],
+    services:   [sectionServices, sectionAbout, sectionInfo, sectionFeatured, sectionCatalog],
+    retail:     [sectionFeatured, sectionCatalog, sectionServices, sectionAbout, sectionInfo],
+  };
+
+  const orderedSections = LAYOUT_ORDERS[layout] || LAYOUT_ORDERS.retail;
+
   return (
     <div className="sp-wrap">
       <style>{styles(stylesConfig)}</style>
 
-      {/* 1. HEADER BANNER — Estilo Premium Solapado (Foto 3) */}
-      <header className="sp-header-wrapper sp-slide-up">
+      {/* ═══ HEADER ═══ */}
+      <header className={`sp-header-wrapper sp-slide-up sp-layout-${layout}`}>
         <div className="sp-banner-cover">
-          {/* Capa de portada con soporte para cover/contain y ajuste de zoom y posición */}
           {profile.business_cover_url && coverStyle.fit === 'contain' ? (
             <>
               <div aria-hidden="true" style={coverStyle.bgStyle} />
@@ -408,13 +583,11 @@ export default function SellerPage() {
               aria-hidden="true"
             />
           )}
-          {/* Gradiente oscuro sobre la portada */}
           <div className="sp-hero-overlay" />
         </div>
 
-        {/* Barra de Información del Negocio */}
-        <div className="sp-header-info-bar">
-          <div className="sp-header-logo-container sp-anim-pop">
+        <div className={`sp-header-info-bar sp-layout-${layout}`}>
+          <div className={`sp-header-logo-container sp-anim-pop sp-layout-${layout}`}>
             <div className="sp-header-logo">
               {profile.business_logo_url ? (
                 <img src={profile.business_logo_url} alt={profile.business_name} />
@@ -474,170 +647,15 @@ export default function SellerPage() {
         </div>
       </header>
 
-      {/* 2. SOBRE EL NEGOCIO */}
-      {(profile.business_about || profile.business_description) && (
-        <section className="sp-section sp-section-about sp-slide-up">
-          <div className="sp-section-head">
-            <span className="sp-section-label">Nuestra historia</span>
-            <h2>Sobre nosotros</h2>
-            <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
-          </div>
+      {/* ═══ DYNAMIC SECTIONS — Ordered by template layout ═══ */}
+      {orderedSections}
 
-          <div
-            className="sp-about-card"
-            style={{ borderColor: hexToRgba(primary, 0.14) }}
-          >
-            <div
-              className="sp-about-accent"
-              style={{ background: `linear-gradient(180deg, ${primary}, ${hexToRgba(primary, 0.4)})` }}
-              aria-hidden="true"
-            />
-            <div
-              className="sp-about-quote-mark"
-              style={{ color: hexToRgba(primary, 0.18) }}
-              aria-hidden="true"
-            >
-              "
-            </div>
-            <p className="sp-about">
-              {profile.business_about || profile.business_description}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* 3. SERVICIOS */}
-      {services.length > 0 && (
-        <section className="sp-section sp-section-services sp-slide-up">
-          <div className="sp-section-head">
-            <span className="sp-section-label">Lo que hacemos</span>
-            <h2>Nuestros Servicios</h2>
-            <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
-          </div>
-          <div className="sp-cards">
-            {services.map((s, i) => (
-              <article key={i} className="sp-card sp-card-service" style={{ animationDelay: `${i * 80}ms` }}>
-                <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
-                  <span className="sp-card-icon-emoji">{s.icon}</span>
-                </div>
-                <h3>{s.title}</h3>
-                <p>{s.desc}</p>
-                <div className="sp-card-accent-line" style={{ background: primary }} aria-hidden="true" />
-              </article>
-            ))}
-          </div>
-
-          {servicesList.length > 0 && (
-            <div className="sp-tags">
-              {servicesList.map((t, i) => (
-                <span key={i} className="sp-tag" style={{ borderColor: hexToRgba(primary, 0.3), color: primary, background: hexToRgba(primary, 0.06) }}>
-                  <span style={{ color: primary }}>✓</span> {t}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 4. OFERTAS DESTACADAS (primeras 3) */}
-      {featured.length > 0 && (
-        <section className="sp-section sp-slide-up">
-          <div className="sp-section-head">
-            <span className="sp-section-label">Top picks</span>
-            <h2>Ofertas destacadas</h2>
-            <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
-          </div>
-          <div className="sp-cards sp-cards-featured">
-            {featured.map((o, i) => (
-              <OfferCard key={o.id} offer={o} primary={primary} delay={i * 80} waLink={waLink} featured />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 5. CATÁLOGO */}
-      <section id="ofertas" className="sp-section sp-section-alt sp-slide-up">
-        <div className="sp-section-head">
-          <span className="sp-section-label">Toda la selección</span>
-          <h2>Catálogo de Activos</h2>
-          <span className="sp-divider" style={{ background: `linear-gradient(90deg, ${primary}, ${hexToRgba(primary, 0.35)})` }} />
-        </div>
-        {offers.length === 0 ? (
-          <div className="sp-empty">
-            <div className="sp-empty-icon">🛒</div>
-            <h3>Aún no hay ofertas activas</h3>
-            <p>Muy pronto publicaremos novedades. Escríbenos para conocer más.</p>
-            {waLink() && (
-              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary" style={{ background: primary }}>
-                Contactar por WhatsApp
-              </a>
-            )}
-          </div>
-        ) : catalog.length === 0 && featured.length > 0 ? (
-          <div className="sp-empty">
-            <div className="sp-empty-icon">✨</div>
-            <h3>Ya viste nuestras ofertas destacadas</h3>
-            <p>Estas son todas las ofertas activas por ahora. Pronto habrá más novedades.</p>
-            {waLink() && (
-              <a href={waLink()} target="_blank" rel="noreferrer" className="sp-btn sp-btn-primary" style={{ background: primary }}>
-                Contactar por WhatsApp
-              </a>
-            )}
-          </div>
-        ) : (
-          <div className="sp-cards">
-            {(catalog.length > 0 ? catalog : offers).map((o, i) => (
-              <OfferCard key={o.id} offer={o} primary={primary} delay={i * 60} waLink={waLink} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* 5.5 HORARIOS & UBICACIÓN (FOTO 3) */}
-      {(profile.business_schedule || fullAddress) && (
-        <section className="sp-section sp-slide-up" style={{ paddingBottom: 60 }}>
-          <div className="sp-hours-location-grid">
-            {profile.business_schedule && (
-              <div className="sp-hours-card">
-                <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <h3>Horarios de Atención</h3>
-                <div className="sp-hours-content">
-                  <p className="sp-hours-text">{profile.business_schedule}</p>
-                </div>
-              </div>
-            )}
-            
-            {fullAddress && (
-              <div className="sp-location-card">
-                <div className="sp-card-icon-wrap" style={{ background: hexToRgba(primary, 0.09), color: primary }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                </div>
-                <h3>Ubicación</h3>
-                <p className="sp-location-address">{fullAddress}</p>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="sp-btn sp-btn-secondary"
-                  style={{ marginTop: 16, width: 'fit-content' }}
-                >
-                  Ver en Google Maps →
-                </a>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* 6. CTA WHATSAPP */}
+      {/* ═══ CTA WHATSAPP — Fixed at bottom for all templates ═══ */}
       <section className="sp-cta-final sp-slide-up">
         <div
           className="sp-cta-inner"
           style={{ background: `linear-gradient(135deg, ${primary} 0%, ${hexToRgba(primary, 0.8)} 100%)` }}
         >
-          {/* Orbes decorativos */}
           <div className="sp-cta-orb sp-cta-orb-1" aria-hidden="true" />
           <div className="sp-cta-orb sp-cta-orb-2" aria-hidden="true" />
           <div className="sp-cta-content">
@@ -667,7 +685,15 @@ export default function SellerPage() {
 }
 
 function OfferCard({ offer, primary, delay = 0, waLink, featured = false }) {
-  const img = offer.image_url || offer.cover_url;
+  let img = offer.image_url || offer.cover_url;
+  if (Array.isArray(offer.offer_images) && offer.offer_images.length > 0) {
+    const sorted = [...offer.offer_images].sort(
+      (a, b) => (a.position ?? 0) - (b.position ?? 0)
+    );
+    if (sorted[0]?.url) {
+      img = sorted[0].url;
+    }
+  }
   const price = offer.price != null ? offer.price : null;
   const oldPrice = offer.old_price ?? offer.original_price ?? null;
   const discount = oldPrice && price ? Math.round(((oldPrice - price) / oldPrice) * 100) : null;
@@ -730,6 +756,30 @@ function OfferCard({ offer, primary, delay = 0, waLink, featured = false }) {
 const styles = (config) => {
 
   const primary = config.primary;
+  
+  // Detect if background is dark
+  const isDark = (color) => {
+    if (!color) return false;
+    const hex = color.replace('#', '').toLowerCase();
+    if (hex.length === 3) {
+      const r = parseInt(hex[0], 16);
+      const g = parseInt(hex[1], 16);
+      const b = parseInt(hex[2], 16);
+      return (r + g + b) / 3 < 8;
+    } else if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return (r + g + b) / 3 < 128;
+    }
+    return false;
+  };
+
+  const isDarkTheme = isDark(config.bg);
+  const cardBg = isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : '#ffffff';
+  const sectionAltBg = isDarkTheme ? 'rgba(255, 255, 255, 0.02)' : '#ffffff';
+  const cardBorder = isDarkTheme ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.05)';
+
   return `
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Montserrat:wght@400;700&display=swap');
 
@@ -740,6 +790,9 @@ const styles = (config) => {
   --sp-btn-bg: ${config.btnBg};
   --sp-btn-text: ${config.btnText};
   --sp-font: '${config.font}', 'Plus Jakarta Sans', sans-serif;
+  --sp-card-bg: ${cardBg};
+  --sp-section-alt-bg: ${sectionAltBg};
+  --sp-card-border: ${cardBorder};
 }
 
 /* ============================
@@ -995,14 +1048,18 @@ const styles = (config) => {
    SECCIONES
    ============================ */
 .sp-section{
+  width: 100%;
+  padding: 48px 0;
+}
+.sp-section-inner{
   max-width: 1200px;
   margin: 0 auto;
-  padding: 48px 24px;
+  padding: 0 24px;
 }
 .sp-section-alt{
-  background: #ffffff;
-  border-top: 1px solid rgba(15,23,42,0.04);
-  border-bottom: 1px solid rgba(15,23,42,0.04);
+  background: var(--sp-section-alt-bg);
+  border-top: 1px solid var(--sp-card-border);
+  border-bottom: 1px solid var(--sp-card-border);
 }
 .sp-section-about{background: transparent}
 
@@ -1029,8 +1086,8 @@ const styles = (config) => {
 .sp-about-card{
   position:relative;width:100%;
   padding:36px 36px 36px 48px;
-  border:1px solid;border-radius:24px;
-  background: #ffffff;
+  border:1px solid var(--sp-card-border);border-radius:24px;
+  background: var(--sp-card-bg);
   box-shadow:0 8px 30px rgba(15,23,42,.04);
   overflow:hidden;
 }
@@ -1067,8 +1124,8 @@ const styles = (config) => {
 }
 
 .sp-card{
-  background: #ffffff;
-  border:1px solid rgba(15,23,42,.05);
+  background: var(--sp-card-bg);
+  border:1px solid var(--sp-card-border);
   border-radius:20px;
   box-shadow:0 4px 20px rgba(15,23,42,.03);
   transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
@@ -1170,8 +1227,8 @@ const styles = (config) => {
 }
 
 .sp-hours-card, .sp-location-card {
-  background: #ffffff;
-  border: 1px solid rgba(15,23,42,0.06);
+  background: var(--sp-card-bg);
+  border: 1px solid var(--sp-card-border);
   border-radius: 24px;
   padding: 36px;
   box-shadow: 0 4px 20px rgba(15,23,42,0.03);
@@ -1321,6 +1378,89 @@ const styles = (config) => {
   .sp-header-actions{flex-direction:column;width:100%}
   .sp-cards,.sp-cards-featured{grid-template-columns:1fr}
   .sp-hours-location-grid{grid-template-columns:1fr}
+}
+
+/* ── Layout Overrides ── */
+
+/* Automotive Layout: tall banner, sharp/border logo, high contrast */
+.sp-layout-automotive .sp-banner-cover {
+  height: 380px;
+}
+.sp-header-info-bar.sp-layout-automotive {
+  margin-top: -90px;
+  gap: 24px;
+}
+.sp-header-logo-container.sp-layout-automotive .sp-header-logo {
+  border-radius: 12px;
+  border: 4px solid var(--sp-primary);
+  background: #090d16;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+.sp-layout-automotive .sp-header-title {
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+/* Elegant Layout: centered header, circular logo, premium font */
+.sp-header-wrapper.sp-layout-elegant {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sp-header-info-bar.sp-layout-elegant {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: -64px;
+  width: 100%;
+}
+.sp-layout-elegant .sp-header-details-wrap {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+.sp-layout-elegant .sp-header-meta {
+  text-align: center;
+}
+.sp-layout-elegant .sp-header-actions {
+  justify-content: center;
+  width: 100%;
+  margin-top: 12px;
+}
+.sp-header-logo-container.sp-layout-elegant .sp-header-logo {
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Retail Layout: interlocking grid logo */
+.sp-layout-retail .sp-banner-cover {
+  height: 280px;
+}
+.sp-header-logo-container.sp-layout-retail .sp-header-logo {
+  border-radius: 18px;
+  border: 4px solid #fff;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Services Layout: foco propuesta de valor y servicios destacados */
+.sp-layout-services .sp-banner-cover {
+  height: 230px;
+}
+.sp-header-logo-container.sp-layout-services .sp-header-logo {
+  border-radius: 20px;
+  border: 3px solid var(--sp-primary);
+}
+
+@media(max-width:768px){
+  .sp-layout-automotive .sp-banner-cover {
+    height: 220px;
+  }
+  .sp-layout-elegant .sp-banner-cover {
+    height: 180px;
+  }
 }
 `;
 };
