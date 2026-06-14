@@ -61,33 +61,36 @@ const pickOfferImage = (offer) => {
 export default function StoreModule({ seller = {}, offers = [], primaryColor }) {
   const stylesConfig = useMemo(() => {
     let cfg = {
-      primary: "#2563eb",
-      bg: "#ffffff",
-      text: "#1f2933",
-      btnBg: "#2563eb",
-      btnText: "#ffffff",
-      font: "Plus Jakarta Sans"
+      primary: '#2563eb',
+      bg: '#ffffff',
+      text: '#0f172a',
+      btnBg: '#25d366',
+      btnText: '#ffffff',
+      font: 'Plus Jakarta Sans'
     };
-    
-    if (primaryColor && typeof primaryColor === 'object') {
-      cfg = { ...cfg, ...primaryColor };
-    } else {
-      const colorVal = primaryColor || seller.business_primary_color;
-      if (colorVal) {
-        if (typeof colorVal === 'string' && colorVal.trim().startsWith("{")) {
-          try {
-            const parsed = JSON.parse(colorVal);
-            cfg = { ...cfg, ...parsed };
-          } catch (e) {
-            cfg.primary = colorVal;
-            cfg.btnBg = colorVal;
-          }
-        } else if (typeof colorVal === 'string') {
-          cfg.primary = colorVal;
-          cfg.btnBg = colorVal;
+
+    if (seller.business_primary_color) {
+      try {
+        const parsed = JSON.parse(seller.business_primary_color);
+        if (parsed && typeof parsed === 'object') {
+          cfg = { ...cfg, ...parsed };
         }
+      } catch {
+        cfg.primary = seller.business_primary_color;
       }
     }
+
+    if (primaryColor) {
+      try {
+        const parsed = JSON.parse(primaryColor);
+        if (parsed && typeof parsed === 'object') {
+          cfg = { ...cfg, ...parsed };
+        }
+      } catch {
+        cfg.primary = primaryColor;
+      }
+    }
+
     return cfg;
   }, [primaryColor, seller.business_primary_color]);
 
@@ -116,13 +119,11 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
     '--sm-on-surface': stylesConfig.text,
     '--sm-on-surface-variant': `color-mix(in srgb, ${stylesConfig.text} 65%, ${stylesConfig.bg})`,
     '--sm-midnight': isDarkBg ? stylesConfig.text : '#0f172a',
-    'fontFamily': `'${stylesConfig.font}', 'Plus Jakarta Sans', sans-serif`
+    fontFamily: `'${stylesConfig.font}', 'Plus Jakarta Sans', sans-serif`
   };
 
-  const title =
-    seller.business_name || 'Bienvenido a nuestra tienda';
-  const subtitle =
-    seller.business_headline || seller.business_description || '';
+  const title = seller.business_name || 'Bienvenido a nuestra tienda';
+  const subtitle = seller.business_headline || seller.business_description || '';
 
   // Ofertas destacadas: solo las primeras 3 reales.
   const featured = Array.isArray(offers) ? offers.slice(0, 3) : [];
@@ -142,6 +143,7 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
 
   const layout = getTemplateLayout(seller.business_template);
 
+  // ─── Block: Welcome ───────────────────────────────────────
   const blockWelcome = (
     <section key="welcome" className="sm-section sm-welcome sm-fade-up">
       <div className="sm-section-inner sm-welcome-inner">
@@ -164,6 +166,7 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
     </section>
   );
 
+  // ─── Block: Benefits ──────────────────────────────────────
   const blockBenefits = (
     <section key="benefits" className="sm-section sm-benefits sm-fade-up">
       <div className="sm-section-inner">
@@ -192,6 +195,7 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
     </section>
   );
 
+  // ─── Block: Offers ────────────────────────────────────────
   const blockOffers = featured.length > 0 ? (
     <section key="offers" className="sm-section sm-offers sm-fade-up">
       <div className="sm-section-inner">
@@ -201,76 +205,76 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
         </div>
 
         <div className="sm-offers-grid">
-        {featured.map((offer, idx) => {
-          const name = offer.title || offer.name || 'Oferta';
-          const img = pickOfferImage(offer);
-          const price = formatPrice(offer.price);
-          const oldPrice = formatPrice(offer.old_price ?? offer.original_price);
-          const waOffer = buildWaLink(
-            seller.business_whatsapp,
-            `Hola, me interesa: ${name}`
-          );
+          {featured.map((offer, idx) => {
+            const name = offer.title || offer.name || 'Oferta';
+            const img = pickOfferImage(offer);
+            const price = formatPrice(offer.price);
+            const oldPrice = formatPrice(offer.old_price ?? offer.original_price);
+            const waOffer = buildWaLink(
+              seller.business_whatsapp,
+              `Hola, me interesa: ${name}`
+            );
 
-          return (
-            <article
-              className="sm-offer-card"
-              key={offer.id != null ? offer.id : idx}
-            >
-              <div className="sm-offer-media">
-                {img ? (
-                  <img src={img} alt={name} loading="lazy" />
-                ) : (
-                  <div className="sm-offer-placeholder" aria-hidden="true">🛍️</div>
-                )}
-              </div>
-
-              <div className="sm-offer-body">
-                <h4 className="sm-offer-title">{name}</h4>
-                {offer.description && (
-                  <p className="sm-offer-desc">{offer.description}</p>
-                )}
-
-                {price && (
-                  <div className="sm-offer-prices">
-                    <span className="sm-offer-price">${price}</span>
-                    {oldPrice && (
-                      <span className="sm-offer-oldprice">${oldPrice}</span>
-                    )}
-                  </div>
-                )}
-
-                <div className="sm-offer-actions">
-                  {offer.id != null && (
-                    <Link
-                      className="sm-btn sm-btn-outline"
-                      to={`/offers/${offer.id}`}
-                    >
-                      Ver detalle
-                    </Link>
-                  )}
-                  {waOffer && (
-                    <a
-                      className="sm-btn sm-btn-whatsapp sm-btn-sm"
-                      href={waOffer}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ background: stylesConfig.btnBg, color: stylesConfig.btnText }}
-                    >
-                      <span className="sm-btn-icon" aria-hidden="true">💬</span>
-                      Lo quiero
-                    </a>
+            return (
+              <article
+                className="sm-offer-card"
+                key={offer.id != null ? offer.id : idx}
+              >
+                <div className="sm-offer-media">
+                  {img ? (
+                    <img src={img} alt={name} loading="lazy" />
+                  ) : (
+                    <div className="sm-offer-placeholder" aria-hidden="true">🛍️</div>
                   )}
                 </div>
-              </div>
-            </article>
-          );
-        })}
+
+                <div className="sm-offer-body">
+                  <h4 className="sm-offer-title">{name}</h4>
+                  {offer.description && (
+                    <p className="sm-offer-desc">{offer.description}</p>
+                  )}
+
+                  {price && (
+                    <div className="sm-offer-prices">
+                      <span className="sm-offer-price">${price}</span>
+                      {oldPrice && (
+                        <span className="sm-offer-oldprice">${oldPrice}</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="sm-offer-actions">
+                    {offer.id != null && (
+                      <Link
+                        className="sm-btn sm-btn-outline"
+                        to={`/offers/${offer.id}`}
+                      >
+                        Ver detalle
+                      </Link>
+                    )}
+                    {waOffer && (
+                      <a
+                        className="sm-btn sm-btn-whatsapp sm-btn-sm"
+                        href={waOffer}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ background: stylesConfig.btnBg, color: stylesConfig.btnText }}
+                      >
+                        <span className="sm-btn-icon" aria-hidden="true">💬</span>
+                        Lo quiero
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>
   ) : null;
 
-  // LAYOUT ORDERS:
+  // ─── Layout Orders ────────────────────────────────────────
   // automotive (motos, cars, vehicles):  Offers → Benefits → Welcome
   // elegant   (beauty, fashion, clothing): Welcome → Benefits → Offers
   // services  (services, health, gym, vet): Benefits → Welcome → Offers
