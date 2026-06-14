@@ -12,6 +12,7 @@ import Admin from './pages/Admin.jsx';
 import OfferDetail from './pages/OfferDetail.jsx';
 import BusinessProfile from './pages/BusinessProfile.jsx';
 import SellerPage from './pages/SellerPage.jsx';
+import SellerPageWithSEO from './pages/SellerPageWithSEO.jsx';
 import SellerPreviewPage from './pages/SellerPreviewPage.jsx';
 export default function App() {
   return (
@@ -25,20 +26,12 @@ export default function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/offers/:id" element={<OfferDetail />} />
 
-            {/* Página pública de la tienda de un vendedor */}
-            <Route path="/seller/:slug" element={<SellerPage />} />
+            {/* Página pública de la tienda de un vendedor (con SEO dinámico) */}
+            <Route path="/seller/:slug" element={<SellerPageWithSEO />} />
             <Route path="/seller-preview/:slug" element={<SellerPreviewPage />} />
 
             <Route
               path="/publish"
-              element={
-                <ProtectedRoute>
-                  <Publish />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/create-offer"
               element={
                 <ProtectedRoute>
                   <Publish />
