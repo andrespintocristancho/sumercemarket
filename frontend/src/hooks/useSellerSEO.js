@@ -1,19 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * useSellerSEO
  * -----------
- * Custom hook que inyecta SEO dinamico para la pagina web profesional
+ * Custom hook que inyecta SEO dinámico para la página web profesional
  * del vendedor (/seller/:slug).
  *
+ * Inyecta:
  * - document.title
  * - meta description
  * - canonical
  * - OpenGraph (og:title, og:description, og:image, og:url, og:type, og:site_name)
  * - Twitter Card (twitter:card, twitter:title, twitter:description, twitter:image)
  *
- * Al desmontar el componente, restaura el titulo y limpia todas las
- * etiquetas meta/link inyectadas para no contaminar otras paginas.
+ * Al desmontar restaura el título original y limpia meta tags inyectados.
  *
  * @param {Object|null} profile  - Fila de profiles con datos del negocio.
  * @param {string}      slug     - business_slug del vendedor.
@@ -22,11 +22,10 @@ import { useEffect } from 'react';
 const SITE_NAME = 'SumerceMarket';
 const BASE_URL = 'https://sumercemarket.com';
 
-/**
- * Crea o actualiza una etiqueta <meta> en <head>.
- * Devuelve la referencia al elemento para limpieza posterior.
- */
-function setMeta(attr, key, content) {
+/* ── helpers ─────────────────────────────────────────── */
+
+/** Crea o actualiza una etiqueta <meta> en <head>. */
+function upsertMeta(attr, key, content) {
   if (!content) return null;
   let el = document.querySelector(`meta[${attr}="${key}"]`);
   if (el) {
@@ -40,11 +39,8 @@ function setMeta(attr, key, content) {
   return el;
 }
 
-/**
- * Crea o actualiza una etiqueta <link> en <head>.
- * Devuelve la referencia al elemento para limpieza posterior.
- */
-function setLink(rel, href) {
+/** Crea o actualiza una etiqueta <link> en <head>. */
+function upsertLink(rel, href) {
   if (!href) return null;
   let el = document.querySelector(`link[rel="${rel}"]`);
   if (el) {
@@ -59,9 +55,9 @@ function setLink(rel, href) {
 }
 
 /**
- * Construye una descripcion elegante a partir de los datos del negocio.
+ * Construye una descripción elegante para meta tags.
  * Prioridad: headline > about > description > fallback.
- * Trunca a 160 caracteres para SEO optimo.
+ * Trunca a 160 caracteres sin cortar palabras.
  */
 function buildDescription(profile) {
   const name = profile.business_name || '';
@@ -72,108 +68,108 @@ function buildDescription(profile) {
     '';
 
   if (!raw) {
-    return `${name} - Encuentra las mejores ofertas y productos en ${SITE_NAME}. Contacta directo por WhatsApp.`;
+    return `${name} – Encuentra las mejores ofertas y productos en ${SITE_NAME}. Contacta directo por WhatsApp.`;
   }
 
-  // Si la descripcion ya incluye el nombre, no lo duplicamos
   const prefix = raw.toLowerCase().includes(name.toLowerCase())
     ? ''
-    : `${name} - `;
+    : `${name} – `;
 
   const full = `${prefix}${raw}`;
 
-  // Truncar a 160 caracteres sin cortar palabras
   if (full.length <= 160) return full;
   const truncated = full.substring(0, 157);
   const lastSpace = truncated.lastIndexOf(' ');
   return (lastSpace > 120 ? truncated.substring(0, lastSpace) : truncated) + '...';
 }
 
-/**
- * Elige la mejor imagen para OpenGraph / Twitter Card.
- * Prioridad: cover > logo > null.
- */
+/** Elige la mejor imagen para OG/Twitter. cover > logo > null. */
 function pickImage(profile) {
   return profile.business_cover_url || profile.business_logo_url || null;
 }
 
+/* ── hook ────────────────────────────────────────────── */
+
 export function useSellerSEO(profile, slug) {
+  // Guardamos el título original UNA SOLA VEZ al montar el componente.
+  // useRef garantiza que Strict Mode no lo sobrescriba.
+  const originalTitleRef = useRef(document.title);
+  const injectedRef = useRef([]);
+
   useEffect(() => {
-    // Guardar titulo original para restaurar al desmontar
-    const originalTitle = document.title;
+    // ─── Guard: si no hay perfil o slug, no inyectar nada ───
+    if (!profile || !profile.business_name || !slug) {
+      return;
+    }
 
-    if (!profile || !slug) return;
-
-    // --- 1. document.title ---
-    const title = `${profile.business_name || slug} | ${SITE_NAME}`;
+    // ─── 1. document.title ───
+    const title = `${profile.business_name} | ${SITE_NAME}`;
     document.title = title;
 
-    // --- 2. Descripcion ---
+    // ─── 2. Descripción ───
     const description = buildDescription(profile);
 
-    // --- 3. Imagen ---
+    // ─── 3. Imagen ───
     const image = pickImage(profile);
 
-    // --- 4. URL canonica ---
+    // ─── 4. URL canónica ───
     const canonicalUrl = `${BASE_URL}/seller/${slug}`;
 
-    // --- Inyectar etiquetas ---
+    // ─── 5. Inyectar etiquetas ───
     const injected = [];
 
     // Meta description
-    const metaDesc = setMeta('name', 'description', description);
+    const metaDesc = upsertMeta('name', 'description', description);
     if (metaDesc) injected.push(metaDesc);
 
     // Canonical
-    const linkCanonical = setLink('canonical', canonicalUrl);
+    const linkCanonical = upsertLink('canonical', canonicalUrl);
     if (linkCanonical) injected.push(linkCanonical);
 
     // OpenGraph
-    const ogTags = [
+    const ogEntries = [
       ['property', 'og:type', 'website'],
       ['property', 'og:site_name', SITE_NAME],
       ['property', 'og:title', title],
       ['property', 'og:description', description],
       ['property', 'og:url', canonicalUrl],
     ];
-
     if (image) {
-      ogTags.push(['property', 'og:image', image]);
-      ogTags.push(['property', 'og:image:width', '1200']);
-      ogTags.push(['property', 'og:image:height', '630']);
+      ogEntries.push(['property', 'og:image', image]);
+      ogEntries.push(['property', 'og:image:width', '1200']);
+      ogEntries.push(['property', 'og:image:height', '630']);
     }
-
-    ogTags.forEach(([attr, key, content]) => {
-      const el = setMeta(attr, key, content);
+    ogEntries.forEach(([attr, key, content]) => {
+      const el = upsertMeta(attr, key, content);
       if (el) injected.push(el);
     });
 
     // Twitter Card
-    const twitterTags = [
+    const twEntries = [
       ['name', 'twitter:card', image ? 'summary_large_image' : 'summary'],
       ['name', 'twitter:title', title],
       ['name', 'twitter:description', description],
     ];
-
     if (image) {
-      twitterTags.push(['name', 'twitter:image', image]);
+      twEntries.push(['name', 'twitter:image', image]);
     }
-
-    twitterTags.forEach(([attr, key, content]) => {
-      const el = setMeta(attr, key, content);
+    twEntries.forEach(([attr, key, content]) => {
+      const el = upsertMeta(attr, key, content);
       if (el) injected.push(el);
     });
 
-    // --- Cleanup al desmontar ---
+    // Guardar referencia para cleanup
+    injectedRef.current = injected;
+
+    // ─── Cleanup al desmontar o cuando cambien deps ───
     return () => {
-      document.title = originalTitle;
-      injected.forEach((el) => {
-        // Solo removemos elementos que nosotros creamos (no pre-existentes)
-        // Verificamos que sigan en el DOM
+      document.title = originalTitleRef.current;
+      injectedRef.current.forEach((el) => {
         if (el && el.parentNode) {
           el.parentNode.removeChild(el);
         }
       });
+      injectedRef.current = [];
     };
   }, [profile, slug]);
 }
