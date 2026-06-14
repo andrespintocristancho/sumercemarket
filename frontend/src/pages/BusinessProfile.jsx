@@ -631,7 +631,6 @@ export default function BusinessProfile() {
                       {/* ── Imagen con overlay para cambiar ── */}
                       <div
                         className="bp-offer-img-wrap"
-                        style={{ position: 'relative', cursor: 'pointer' }}
                         onClick={() => triggerOfferFileInput(offer.id)}
                       >
                         <input
@@ -641,6 +640,7 @@ export default function BusinessProfile() {
                           ref={el => { offerFileRefs.current[offer.id] = el; }}
                           onChange={e => handleOfferImageUpload(e, offer.id)}
                         />
+
                         {offer.image_url ? (
                           <img
                             className="bp-offer-img"
@@ -648,54 +648,15 @@ export default function BusinessProfile() {
                             alt={offer.title}
                           />
                         ) : (
-                          <div
-                            className="bp-offer-img"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 36,
-                              color: 'var(--bp-text-muted)',
-                            }}
-                          >
-                            📷
-                          </div>
+                          <div className="bp-offer-img-empty">📷</div>
                         )}
-                        {/* Overlay de cambiar imagen */}
-                        <div
-                          className="bp-offer-img-overlay"
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            background: 'rgba(0,0,0,0.55)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            opacity: isUploading ? 1 : 0,
-                            transition: 'opacity 0.25s ease',
-                            pointerEvents: 'none',
-                          }}
-                        >
-                          <span style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: '#fff',
-                            background: 'rgba(99,102,241,0.85)',
-                            backdropFilter: 'blur(6px)',
-                            padding: '8px 18px',
-                            borderRadius: 50,
-                          }}>
+
+                        {/* Overlay */}
+                        <div className={`bp-offer-img-overlay${isUploading ? ' bp-offer-img-overlay-uploading' : ''}`}>
+                          <span className="bp-offer-img-overlay-pill">
                             {isUploading ? '⏳ Subiendo...' : '📷 Cambiar imagen'}
                           </span>
                         </div>
-                        <style>{`
-                          .bp-offer-img-wrap:hover .bp-offer-img-overlay {
-                            opacity: 1 !important;
-                            pointer-events: auto !important;
-                          }
-                        `}</style>
                       </div>
 
                       {/* ── Body de la oferta ── */}
@@ -710,7 +671,8 @@ export default function BusinessProfile() {
                           <span className={`bp-offer-status ${offer.status}`}>
                             {offer.status === 'active' ? '● Activa' :
                              offer.status === 'paused' ? '⏸ Pausada' :
-                             offer.status === 'sold' ? '✓ Vendida' : offer.status}
+                             offer.status === 'sold' ? '✓ Vendida' :
+                             offer.status === 'archived' ? '📁 Archivada' : offer.status}
                           </span>
                         )}
                       </div>
