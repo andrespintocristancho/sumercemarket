@@ -206,6 +206,25 @@ export default function Publish() {
           Completa los datos del producto o servicio que quieres ofrecer.
         </p>
 
+        {profile?.business_name && (
+          <div style={{
+            background: 'rgba(37,99,235,0.05)',
+            border: '1px solid rgba(37,99,235,0.15)',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10
+          }}>
+            <span style={{ fontSize: 20 }} role="img" aria-label="tienda">🏪</span>
+            <div>
+              <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>Publicando como tienda:</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1e40af' }}>{profile.business_name}</div>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <label style={styles.label}>
             Título

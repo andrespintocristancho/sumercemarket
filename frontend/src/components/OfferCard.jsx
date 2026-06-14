@@ -56,14 +56,18 @@ export default function OfferCard({
             {mainImage ? (
               <img src={mainImage} alt={offer.title} style={styles.img} loading="lazy" />
             ) : (
-              <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
+              <div style={styles.imgPlaceholder} aria-hidden>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              </div>
             )}
           </Link>
         ) : (
           mainImage ? (
             <img src={mainImage} alt={offer.title} style={styles.img} loading="lazy" />
           ) : (
-            <div style={styles.imgPlaceholder} aria-hidden>🛒</div>
+            <div style={styles.imgPlaceholder} aria-hidden>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
           )
         )}
         <StatusBadge status={status} />
@@ -82,14 +86,29 @@ export default function OfferCard({
         <div style={styles.meta}>
           {offer.category && <span style={styles.tag}>{offer.category}</span>}
           <span style={styles.location}>
-            📍 {offer.city}{offer.department ? `, ${offer.department}` : ''}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, display: 'inline-block', verticalAlign: 'middle' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span style={{ verticalAlign: 'middle' }}>{offer.city}{offer.department ? `, ${offer.department}` : ''}</span>
           </span>
         </div>
+
+        {offer.profiles?.business_name && (
+          <div style={styles.shopMeta}>
+            <span style={styles.shopLabel}>Tienda:</span>{' '}
+            {offer.profiles.business_slug ? (
+              <Link to={`/seller/${offer.profiles.business_slug}`} style={styles.shopLink}>
+                {offer.profiles.business_name}
+              </Link>
+            ) : (
+              <span style={{ fontWeight: 700 }}>{offer.profiles.business_name}</span>
+            )}
+          </div>
+        )}
 
         <div style={styles.actions}>
           {detailHref && (
             <Link to={detailHref} className="btn btn-ghost" style={styles.detailBtn}>
-              👁️ Ver detalle
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Ver detalle
             </Link>
           )}
           {waLink ? (
@@ -99,7 +118,8 @@ export default function OfferCard({
               onClick={handleWhatsAppClick}
               style={styles.waBtn}
             >
-              💬 WhatsApp
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              WhatsApp
             </button>
           ) : phone ? (
             <span style={styles.phoneText}>{formatPhone(phone)}</span>
@@ -126,15 +146,19 @@ export default function OfferCard({
                 type="button"
                 className="btn btn-ghost"
                 onClick={() => onEdit?.(offer)}
+                style={{ flex: 1 }}
               >
-                ✏️ Editar
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Editar
               </button>
               <button
                 type="button"
                 className="btn btn-danger"
                 onClick={() => onDelete?.(offer)}
+                style={{ flex: 1 }}
               >
-                🗑️ Eliminar
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Eliminar
               </button>
             </div>
           </div>
@@ -258,6 +282,23 @@ const styles = {
     borderRadius: 999
   },
   location: { fontSize: 13, color: '#6b7280' },
+  shopMeta: {
+    fontSize: 13,
+    color: '#374151',
+    marginTop: 4,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4
+  },
+  shopLabel: {
+    color: '#6b7280',
+    fontWeight: 500
+  },
+  shopLink: {
+    color: '#2563eb',
+    fontWeight: 700,
+    textDecoration: 'none'
+  },
   actions: {
     display: 'flex',
     alignItems: 'center',

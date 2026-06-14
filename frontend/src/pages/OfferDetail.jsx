@@ -63,7 +63,7 @@ export default function OfferDetail() {
               image_url, contact_phone, contact_name,
               status, created_at, user_id,
               offer_images ( id, url, position ),
-              profiles ( id, full_name, phone, avatar_url )
+              profiles ( id, full_name, phone, avatar_url, business_name, business_slug )
             `
           )
           .eq('id', id)
@@ -101,7 +101,7 @@ export default function OfferDetail() {
             if (data.user_id) {
               const prof = await supabase
                 .from('profiles')
-                .select('id, full_name, phone, avatar_url')
+                .select('id, full_name, phone, avatar_url, business_name, business_slug')
                 .eq('id', data.user_id)
                 .maybeSingle();
               if (!prof.error && prof.data) {
@@ -159,6 +159,7 @@ export default function OfferDetail() {
   // ---------------------------------------------------------------------------
   const sellerName = useMemo(() => {
     return (
+      seller?.business_name ||
       seller?.full_name ||
       offer?.contact_name ||
       'Vendedor SumerceMarket'
@@ -326,11 +327,48 @@ export default function OfferDetail() {
 
           <div className="offer-detail-seller">
             <h3>Vendedor</h3>
-            <p><strong>{sellerName}</strong></p>
-            {sellerPhone && (
-              <p className="text-muted">📞 {formatPhone(sellerPhone)}</p>
+            {seller?.business_name ? (
+              <div className="seller-shop-container" style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0' }}>
+                {seller.avatar_url || seller.business_logo_url ? (
+                  <img
+                    src={seller.business_logo_url || seller.avatar_url}
+                    alt={seller.business_name}
+                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0' }}
+                  />
+                ) : (
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🏪</div>
+                )}
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                    {seller.business_slug ? (
+                      <Link to={`/seller/${seller.business_slug}`} style={{ color: '#2563eb', textDecoration: 'none' }}>
+                        {seller.business_name}
+                      </Link>
+                    ) : (
+                      seller.business_name
+                    )}
+                  </h4>
+                  {seller.full_name && (
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Contacto: {seller.full_name}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p><strong>{sellerName}</strong></p>
             )}
-            <p className="text-muted">Miembro de SumerceMarket</p>
+            {sellerPhone && (
+              <p className="text-muted" style={{ margin: '4px 0 0 0' }}>📞 {formatPhone(sellerPhone)}</p>
+            )}
+            <p className="text-muted" style={{ margin: '4px 0 0 0' }}>Miembro de SumerceMarket</p>
+            {seller?.business_slug && (
+              <Link
+                to={`/seller/${seller.business_slug}`}
+                className="btn btn-ghost"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '6px 12px', fontSize: 13, width: 'fit-content', textDecoration: 'none' }}
+              >
+                🏪 Visitar tienda virtual
+              </Link>
+            )}
           </div>
 
           {isActive ? (

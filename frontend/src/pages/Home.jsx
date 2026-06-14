@@ -48,7 +48,8 @@ export default function Home() {
               contact_phone,
               contact_name,
               created_at,
-              offer_images ( id, url, position )
+              offer_images ( id, url, position ),
+              profiles ( id, business_name, business_slug )
             `,
             { count: 'exact' }
           )
@@ -96,15 +97,19 @@ export default function Home() {
         </p>
       </section>
 
-      <section className="card" style={styles.filters}>
-        <input
-          type="search"
-          className="input"
-          placeholder="Buscar por título…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Buscar ofertas por título"
-        />
+      <section className="card home-filters-container" style={styles.filters}>
+        <div style={{ position: 'relative', width: '100%' }}>
+          <input
+            type="search"
+            className="input"
+            placeholder="Buscar por título…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Buscar ofertas por título"
+            style={{ paddingLeft: '40px' }}
+          />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
         <select
           className="select"
           value={department}
@@ -148,11 +153,13 @@ export default function Home() {
 
 function EmptyState() {
   return (
-    <div className="card" style={{ marginTop: 16, textAlign: 'center', padding: 32 }}>
-      <div style={{ fontSize: 48 }}>🔎</div>
-      <h3 style={{ margin: '8px 0' }}>No hay ofertas para mostrar</h3>
-      <p style={{ color: '#6b7280', margin: 0 }}>
-        Prueba con otros filtros o <Link to="/publish" style={{ color: '#2563eb', fontWeight: 600 }}>publica la primera</Link>.
+    <div className="card" style={{ marginTop: 24, textAlign: 'center', padding: '48px 24px', border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16, color: '#94a3b8' }}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: 18, color: '#0f172a', fontWeight: '700' }}>No hay ofertas para mostrar</h3>
+      <p style={{ color: '#64748b', margin: 0, fontSize: 14 }}>
+        Prueba con otros filtros o <Link to="/create-offer" style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>publica la primera</Link>.
       </p>
     </div>
   );
@@ -167,9 +174,10 @@ function Pagination({ page, totalPages, onChange }) {
         disabled={page === 0}
         onClick={() => onChange(Math.max(0, page - 1))}
       >
-        ← Anterior
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Anterior
       </button>
-      <span style={{ fontSize: 14, color: '#6b7280' }}>
+      <span style={{ fontSize: 14, color: '#6b7280', fontWeight: '500' }}>
         Página {page + 1} de {totalPages}
       </span>
       <button
@@ -177,7 +185,8 @@ function Pagination({ page, totalPages, onChange }) {
         disabled={page + 1 >= totalPages}
         onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
       >
-        Siguiente →
+        Siguiente
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </button>
     </div>
   );
@@ -185,15 +194,41 @@ function Pagination({ page, totalPages, onChange }) {
 
 const styles = {
   hero: {
-    padding: '24px 8px 8px 8px'
+    padding: '48px 24px',
+    borderRadius: '20px',
+    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+    border: '1px solid #e2e8f0',
+    textAlign: 'center',
+    marginBottom: '24px',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
   },
-  h1: { margin: 0, fontSize: 28 },
-  heroText: { margin: '6px 0 0 0', color: '#6b7280' },
+  h1: { 
+    margin: 0, 
+    fontSize: '32px', 
+    fontWeight: '800', 
+    color: '#0f172a',
+    letterSpacing: '-0.03em'
+  },
+  heroText: { 
+    margin: '12px 0 0 0', 
+    color: '#475569', 
+    fontSize: '16px',
+    fontWeight: '400',
+    maxWidth: '600px',
+    marginLeft: 'auto',
+    marginRight: 'auto'
+  },
   filters: {
-    marginTop: 12,
+    marginTop: 0,
+    marginBottom: '24px',
     display: 'grid',
     gridTemplateColumns: '1fr',
-    gap: 8
+    gap: '12px',
+    padding: '16px',
+    borderRadius: '16px',
+    border: '1px solid #e2e8f0',
+    background: '#ffffff',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
   },
   grid: {
     marginTop: 16,
@@ -202,7 +237,7 @@ const styles = {
     gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))'
   },
   pagination: {
-    marginTop: 16,
+    marginTop: 24,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -211,13 +246,13 @@ const styles = {
   }
 };
 
-// Filtros en desktop: 3 columnas
+// CSS responsivo para el buscador de filtros
 if (typeof document !== 'undefined' && !document.getElementById('home-media')) {
   const style = document.createElement('style');
   style.id = 'home-media';
   style.textContent = `
     @media (min-width: 720px) {
-      .card[style*="grid-template-columns: 1fr"] { grid-template-columns: 2fr 1fr 1fr !important; }
+      .home-filters-container { grid-template-columns: 2fr 1fr 1fr !important; }
     }
   `;
   document.head.appendChild(style);

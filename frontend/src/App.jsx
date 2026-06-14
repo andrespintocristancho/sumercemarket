@@ -38,6 +38,14 @@ export default function App() {
               }
             />
             <Route
+              path="/create-offer"
+              element={
+                <ProtectedRoute>
+                  <Publish />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/my-offers"
               element={
                 <ProtectedRoute>

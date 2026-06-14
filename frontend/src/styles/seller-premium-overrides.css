@@ -1,307 +1,159 @@
 /* ==========================================================================
    seller-premium-overrides.css
-   Capa visual PREMIUM (no destructiva) para la pagina publica del vendedor.
-   --------------------------------------------------------------------------
-   - No reemplaza seller-modules.css ni seller-premium.css.
-   - Solo agrega refuerzos visuales sobre selectores existentes probables.
-   - Direccion visual: Plus Jakarta Sans, azul midnight/primary, verde
-     WhatsApp, glassmorphism, cards premium, sombras suaves, bordes
-     redondeados, botones profesionales, hover con elevacion y animaciones
-     fade/slide suaves. Responsive movil/tablet/web.
+   Capa de refinamiento visual para SellerPage v2.
+   No destructiva — solo refuerza y pule detalles específicos.
    ========================================================================== */
 
-/* ---------- Tipografia Plus Jakarta Sans (sin CDN de Tailwind) ---------- */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-/* ---------- Tokens de la capa premium (scoped, no pisa globales) -------- */
+/* ---------- Tokens globales premium ---------- */
 :root {
-  --spx-font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-
-  --spx-midnight: #0b1437;
-  --spx-primary: #1d4ed8;
-  --spx-primary-600: #2563eb;
-  --spx-primary-700: #1e40af;
-
-  --spx-whatsapp: #25d366;
-  --spx-whatsapp-600: #1ebe5d;
-
+  --spx-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --spx-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --spx-surface: #ffffff;
+  --spx-surface-2: #f8fafc;
+  --spx-surface-3: #f1f5f9;
+  --spx-border: rgba(15, 23, 42, 0.07);
   --spx-ink: #0f172a;
   --spx-muted: #64748b;
-  --spx-line: rgba(15, 23, 42, 0.08);
-  --spx-surface: #ffffff;
-
   --spx-radius-sm: 12px;
-  --spx-radius: 18px;
-  --spx-radius-lg: 24px;
-
-  --spx-shadow-sm: 0 2px 8px rgba(11, 20, 55, 0.06);
-  --spx-shadow: 0 10px 30px rgba(11, 20, 55, 0.10);
-  --spx-shadow-lg: 0 22px 55px rgba(11, 20, 55, 0.16);
-
-  --spx-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --spx-radius: 20px;
+  --spx-radius-lg: 28px;
 }
 
-/* ---------- Animaciones reutilizables ---------- */
-@keyframes spxFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes spxFadeSlideUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* ============================
+   HERO — partículas decorativas
+   ============================ */
 
-/* ==========================================================================
-   SECCIONES
-   ========================================================================== */
-.sp-section {
-  font-family: var(--spx-font);
-  color: var(--spx-ink);
-  animation: spxFadeSlideUp 0.5s var(--spx-ease) both;
-}
-
-.sp-section + .sp-section {
-  margin-top: clamp(1.25rem, 4vw, 2.5rem);
-}
-
-/* Divisor sutil tipo premium */
-.sp-divider {
-  height: 1px;
-  border: 0;
-  background: linear-gradient(90deg, transparent, var(--spx-line), transparent);
-  margin: clamp(1rem, 3vw, 2rem) 0;
-}
-
-/* ==========================================================================
-   HERO (glassmorphism + degradado midnight)
-   ========================================================================== */
-.sp-hero {
-  position: relative;
-  font-family: var(--spx-font);
-  border-radius: var(--spx-radius-lg);
-  overflow: hidden;
-  background:
-    radial-gradient(1200px 400px at 10% -20%, rgba(37, 99, 235, 0.35), transparent 60%),
-    linear-gradient(135deg, var(--spx-midnight) 0%, #142057 55%, #1b2a6b 100%);
-  color: #fff;
-  box-shadow: var(--spx-shadow-lg);
-  isolation: isolate;
-  animation: spxFadeIn 0.6s var(--spx-ease) both;
-}
-
-.sp-hero::after {
+/* Noise texture sutil sobre el hero (no bloquea portada) */
+.sp-hero::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(800px 300px at 90% 120%, rgba(37, 99, 235, 0.25), transparent 60%);
-  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
   pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: overlay;
+  opacity: 0.6;
 }
 
-/* Tarjeta de cristal dentro del hero, si existe */
-.sp-hero .sp-card {
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  color: #fff;
+/* ============================
+   OFFER CARD — imagen hover zoom
+   ============================ */
+.sp-card-offer:hover .sp-offer-img {
+  transform: scale(1.08);
 }
 
-/* ==========================================================================
-   GRID DE CARDS
-   ========================================================================== */
-.sp-cards {
-  display: grid;
-  gap: clamp(0.85rem, 2.5vw, 1.5rem);
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+/* Imagen de portada del hero — brillo sutil en hover */
+.sp-hero:hover .sp-hero-cover {
+  filter: saturate(1.15) brightness(0.9);
 }
 
-/* ==========================================================================
-   CARDS PREMIUM (cards, servicios, ofertas)
-   ========================================================================== */
-.sp-card,
-.sp-service,
-.sp-offers .sp-card {
-  font-family: var(--spx-font);
-  background: var(--spx-surface);
-  border: 1px solid var(--spx-line);
-  border-radius: var(--spx-radius);
-  box-shadow: var(--spx-shadow-sm);
-  transition:
-    transform 0.28s var(--spx-ease),
-    box-shadow 0.28s var(--spx-ease),
-    border-color 0.28s var(--spx-ease);
-  will-change: transform;
-}
-
-/* Hover con elevacion */
-.sp-card:hover,
-.sp-service:hover,
-.sp-offers .sp-card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--spx-shadow-lg);
-  border-color: rgba(37, 99, 235, 0.28);
-}
-
-/* Acento superior sutil en servicios */
-.sp-service {
-  position: relative;
-  overflow: hidden;
-}
-.sp-service::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--spx-primary), var(--spx-primary-700));
-  opacity: 0;
-  transition: opacity 0.28s var(--spx-ease);
-}
-.sp-service:hover::before {
-  opacity: 1;
-}
-
-/* ==========================================================================
-   OFERTAS / CATALOGO
-   ========================================================================== */
-.sp-offers {
-  font-family: var(--spx-font);
-}
-.sp-offers .sp-cards {
-  margin-top: clamp(0.75rem, 2vw, 1.25rem);
-}
-
-/* Imagen interna de cards (si existe <img>) con bordes y zoom suave */
-.sp-card img,
-.sp-offers img,
-.sp-service img {
-  border-radius: var(--spx-radius-sm);
-  display: block;
-  width: 100%;
-  height: auto;
-  transition: transform 0.4s var(--spx-ease);
-}
-.sp-card:hover img,
-.sp-offers .sp-card:hover img,
-.sp-service:hover img {
-  transform: scale(1.03);
-}
-
-/* ==========================================================================
-   CTA WHATSAPP (boton profesional verde)
-   ========================================================================== */
-.sp-cta {
-  font-family: var(--spx-font);
-}
-
-.sp-cta a,
-.sp-cta button,
-a.sp-cta,
-button.sp-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  font-weight: 700;
+/* ============================
+   CTA FINAL — refuerzo del brillo de botón
+   ============================ */
+.sp-cta-final .sp-btn-whats {
+  background: #25d366;
+  box-shadow: 0 10px 32px rgba(37, 211, 102, 0.45);
+  font-size: 17px;
+  padding: 17px 38px;
+  border-radius: 16px;
   letter-spacing: 0.01em;
-  color: #fff;
-  background: linear-gradient(135deg, var(--spx-whatsapp), var(--spx-whatsapp-600));
-  border: 0;
-  border-radius: 999px;
-  padding: 0.85rem 1.4rem;
-  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.32);
-  cursor: pointer;
-  transition:
-    transform 0.22s var(--spx-ease),
-    box-shadow 0.22s var(--spx-ease),
-    filter 0.22s var(--spx-ease);
+}
+.sp-cta-final .sp-btn-whats:hover {
+  background: #22c55e;
+  box-shadow: 0 18px 48px rgba(37, 211, 102, 0.58);
+  transform: translateY(-4px);
 }
 
-.sp-cta a:hover,
-.sp-cta button:hover,
-a.sp-cta:hover,
-button.sp-cta:hover {
-  transform: translateY(-3px);
-  filter: brightness(1.03);
-  box-shadow: 0 16px 34px rgba(37, 211, 102, 0.42);
+/* ============================
+   PRICE — destacar precio principal
+   ============================ */
+.sp-price {
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
-.sp-cta a:active,
-.sp-cta button:active,
-a.sp-cta:active,
-button.sp-cta:active {
-  transform: translateY(-1px);
+/* ============================
+   TAGS — spacing y microtransición
+   ============================ */
+.sp-tags {
+  padding: 4px 0;
+}
+.sp-tag:hover {
+  transform: translateY(-3px) scale(1.02);
 }
 
-/* Botones primarios genericos dentro de la pagina del vendedor */
-.sp-section .btn-primary,
-.sp-section button.primary,
-.sp-card .btn-primary {
-  background: linear-gradient(135deg, var(--spx-primary-600), var(--spx-primary-700));
-  color: #fff;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.7rem 1.25rem;
-  font-weight: 600;
-  box-shadow: 0 10px 22px rgba(29, 78, 216, 0.28);
-  transition: transform 0.22s var(--spx-ease), box-shadow 0.22s var(--spx-ease);
-}
-.sp-section .btn-primary:hover,
-.sp-section button.primary:hover,
-.sp-card .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(29, 78, 216, 0.36);
+/* ============================
+   INFO CARD — ícono SVG centrado
+   ============================ */
+.sp-info-icon svg {
+  display: block;
+  flex-shrink: 0;
 }
 
-/* ==========================================================================
-   HORARIO / UBICACION (refuerzo dentro de secciones)
-   ========================================================================== */
-.sp-section .sp-card h3,
-.sp-section .sp-card h4 {
-  font-weight: 700;
-  color: var(--spx-midnight);
-}
-.sp-section .sp-card p {
-  color: var(--spx-muted);
+/* ============================
+   ABOUT CARD — fondo suave interno
+   ============================ */
+.sp-about-card {
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
 }
 
-/* ==========================================================================
-   RESPONSIVE
-   ========================================================================== */
-/* Tablet */
-@media (max-width: 1024px) {
-  .sp-cards {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+/* ============================
+   SECTION LABEL — eyebrow consistente
+   ============================ */
+.sp-section-label {
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ============================
+   BADGE — glassmorphism refinado
+   ============================ */
+.sp-badge-featured {
+  box-shadow: 0 4px 16px rgba(0,0,0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ============================
+   FOOTER — link de marca
+   ============================ */
+.sp-footer-sm {
+  letter-spacing: 0.01em;
+}
+
+/* ============================
+   RESPONSIVE — hero mínimo móvil
+   ============================ */
+@media (max-width: 480px) {
+  .sp-hero-badge {
+    font-size: 11px;
+    padding: 5px 12px;
   }
-}
-
-/* Movil */
-@media (max-width: 640px) {
-  .sp-cards {
-    grid-template-columns: 1fr;
-  }
-  .sp-hero {
-    border-radius: var(--spx-radius);
-  }
-  .sp-cta a,
-  .sp-cta button,
-  a.sp-cta,
-  button.sp-cta {
+  .sp-cta-final .sp-btn-whats {
     width: 100%;
+    justify-content: center;
+    padding: 15px 24px;
+    font-size: 16px;
+  }
+  .sp-offer-body {
+    padding: 18px 18px 18px;
+  }
+  .sp-card-service {
+    padding: 22px 18px;
   }
 }
 
-/* Accesibilidad: respetar usuarios con movimiento reducido */
+/* ============================
+   REDUCE MOTION
+   ============================ */
 @media (prefers-reduced-motion: reduce) {
-  .sp-section,
-  .sp-hero,
-  .sp-card,
-  .sp-service,
-  .sp-offers .sp-card,
-  .sp-card img,
-  .sp-offers img,
-  .sp-service img {
-    animation: none !important;
+  .sp-hero-cover,
+  .sp-hero::before,
+  .sp-offer-img,
+  .sp-card-offer:hover .sp-offer-img {
     transition: none !important;
+    animation: none !important;
   }
 }

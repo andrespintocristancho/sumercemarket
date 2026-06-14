@@ -1,297 +1,69 @@
 /* ============================================================
    seller-premium.css
-   Estilos premium GLOBALES para la página pública del vendedor.
-   No modifica lógica ni JSX: solo mejora clases existentes
-   usadas en SellerPage.jsx.
+   Refuerzo visual global para /seller/:slug
+   Compatible con el CSS-in-JS de SellerPage.jsx v2.
+   Solo agrega sin destruir.
    ============================================================ */
 
-/* ---------- Variables base con acento del negocio ---------- */
-:root {
-  --sp-accent: var(--business_primary_color, #2563eb);
-  --sp-accent-soft: color-mix(in srgb, var(--sp-accent) 12%, #ffffff);
-  --sp-bg-1: #ffffff;
-  --sp-bg-2: #f7f9fc;
-  --sp-text: #1f2933;
-  --sp-text-soft: #52606d;
-  --sp-radius: 18px;
-  --sp-shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.08);
-  --sp-shadow-hover: 0 16px 38px rgba(15, 23, 42, 0.16);
-  --sp-transition: 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* ---------- Animación fade-up ---------- */
-@keyframes spFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.sp-slide-up,
-.sp-section {
-  animation: spFadeUp 0.6s var(--sp-transition) both;
-}
-
-/* ---------- Secciones con fondos alternados ---------- */
-.sp-section {
-  padding: clamp(2.5rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3rem);
-}
-
-.sp-section:nth-of-type(odd) {
-  background: var(--sp-bg-1);
-}
-
-.sp-section:nth-of-type(even) {
-  background: var(--sp-bg-2);
-}
-
-.sp-section-head {
-  text-align: center;
-  margin-bottom: clamp(1.5rem, 3vw, 2.75rem);
-}
-
-.sp-section-head h2 {
-  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--sp-text);
+/* Asegura que el fondo de página sea coherente */
+body:has(.sp-wrap) {
+  background: #f8fafc;
   margin: 0;
+  padding: 0;
 }
 
-/* ---------- Divider con acento ---------- */
-.sp-divider {
-  display: block;
-  width: 64px;
-  height: 4px;
-  margin: 0.85rem auto 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--sp-accent), color-mix(in srgb, var(--sp-accent) 50%, #ffffff));
-}
-
-/* ---------- Hero ---------- */
-.sp-hero {
-  position: relative;
-  border-radius: var(--sp-radius);
-  overflow: hidden;
-  box-shadow: var(--sp-shadow-soft);
-}
-
-.sp-hero::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.45) 100%);
-  pointer-events: none;
-}
-
-/* ---------- CTA / Botones ---------- */
-.sp-cta,
-.sp-cta a,
-.sp-cta button {
-  transition: transform var(--sp-transition), box-shadow var(--sp-transition),
-    background var(--sp-transition);
-}
-
-.sp-cta a,
-.sp-cta button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.85rem 1.6rem;
-  border-radius: 999px;
-  font-weight: 700;
-  background: var(--sp-accent);
-  color: #ffffff;
-  box-shadow: var(--sp-shadow-soft);
-  border: none;
-  cursor: pointer;
-}
-
-.sp-cta a:hover,
-.sp-cta button:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--sp-shadow-hover);
+/* Scroll suave global */
+html {
+  scroll-behavior: smooth;
 }
 
 /* ============================================================
-   "Lo que ofrecemos" — Cards profesionales
+   HERO — refuerzo de imagen de portada
    ============================================================ */
-.sp-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: clamp(1.1rem, 2.4vw, 2rem);
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
-.sp-card {
-  background: var(--sp-bg-1);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: var(--sp-radius);
-  padding: clamp(1.5rem, 2.5vw, 2.1rem);
-  box-shadow: var(--sp-shadow-soft);
-  transition: transform var(--sp-transition), box-shadow var(--sp-transition),
-    border-color var(--sp-transition);
-  position: relative;
-  overflow: hidden;
-}
-
-.sp-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: var(--sp-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform var(--sp-transition);
-}
-
-.sp-card:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--sp-shadow-hover);
-  border-color: color-mix(in srgb, var(--sp-accent) 35%, transparent);
-}
-
-.sp-card:hover::before {
-  transform: scaleX(1);
-}
-
-/* Iconos más visibles dentro de las cards */
-.sp-card svg,
-.sp-card .sp-icon,
-.sp-card i,
-.sp-service svg,
-.sp-service .sp-icon {
-  font-size: 2.2rem;
-  width: 56px;
-  height: 56px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  margin-bottom: 1rem;
-  color: var(--sp-accent);
-  background: var(--sp-accent-soft);
-}
-
-.sp-card h3,
-.sp-service h3 {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin: 0 0 0.5rem;
-  color: var(--sp-text);
-}
-
-.sp-card p,
-.sp-service p {
-  font-size: 0.97rem;
-  line-height: 1.6;
-  color: var(--sp-text-soft);
-  margin: 0;
-}
-
-/* ---------- Benefits ---------- */
-.sp-benefits {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: clamp(1rem, 2vw, 1.75rem);
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
-.sp-benefits > * {
-  background: var(--sp-bg-1);
-  border-radius: var(--sp-radius);
-  padding: 1.5rem;
-  box-shadow: var(--sp-shadow-soft);
-  transition: transform var(--sp-transition), box-shadow var(--sp-transition);
-}
-
-.sp-benefits > *:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--sp-shadow-hover);
-}
-
-/* ---------- Service item ---------- */
-.sp-service {
-  background: var(--sp-bg-1);
-  border-radius: var(--sp-radius);
-  padding: clamp(1.4rem, 2.4vw, 2rem);
-  box-shadow: var(--sp-shadow-soft);
-  transition: transform var(--sp-transition), box-shadow var(--sp-transition);
-}
-
-.sp-service:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--sp-shadow-hover);
-}
-
-/* ---------- Offers ---------- */
-.sp-offers {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: clamp(1.1rem, 2.4vw, 1.9rem);
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
-.sp-offers > * {
-  border-radius: var(--sp-radius);
-  overflow: hidden;
-  box-shadow: var(--sp-shadow-soft);
-  transition: transform var(--sp-transition), box-shadow var(--sp-transition);
-}
-
-.sp-offers > *:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--sp-shadow-hover);
+.sp-hero-cover {
+  will-change: transform;
 }
 
 /* ============================================================
-   Responsive móvil
+   CARDS — sombras consistentes en sección alternada
    ============================================================ */
-@media (max-width: 768px) {
-  .sp-cards,
-  .sp-benefits,
-  .sp-offers {
-    grid-template-columns: 1fr;
-  }
-
-  .sp-section {
-    padding: 2.25rem 1.1rem;
-  }
-
-  .sp-section-head h2 {
-    font-size: 1.55rem;
-  }
-
-  .sp-card {
-    padding: 1.4rem;
-  }
-
-  .sp-cta a,
-  .sp-cta button {
-    width: 100%;
-    justify-content: center;
-  }
+.sp-section-alt .sp-card {
+  background: #ffffff;
 }
 
-/* Accesibilidad: respetar preferencia de menos movimiento */
-@media (prefers-reduced-motion: reduce) {
-  .sp-slide-up,
-  .sp-section,
-  .sp-card,
-  .sp-service,
-  .sp-cta a,
-  .sp-cta button {
-    animation: none;
-    transition: none;
+/* ============================================================
+   Accesibilidad: foco visible premium
+   ============================================================ */
+.sp-btn:focus-visible,
+.sp-info-link:focus-visible,
+.sp-tag:focus-visible {
+  outline: 2.5px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ============================================================
+   Scrollbar elegante (Chromium)
+   ============================================================ */
+.sp-wrap ::-webkit-scrollbar {
+  width: 6px;
+}
+.sp-wrap ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.sp-wrap ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+.sp-wrap ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ============================================================
+   Responsive: cards en tablet 2-col
+   ============================================================ */
+@media (min-width: 581px) and (max-width: 860px) {
+  .sp-cards {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

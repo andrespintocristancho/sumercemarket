@@ -62,7 +62,7 @@ create index if not exists profiles_role_idx       on public.profiles (role);
 -- ============================================================
 create table if not exists public.offers (
     id             uuid primary key default gen_random_uuid(),
-    user_id        uuid not null references auth.users(id) on delete cascade,
+    user_id        uuid not null references public.profiles(id) on delete cascade,
     title          text not null,
     description    text,
     category       text,

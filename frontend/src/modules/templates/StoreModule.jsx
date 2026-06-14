@@ -21,7 +21,7 @@
  * -------------------------------------------------------------
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 // Construye el enlace de WhatsApp a partir del numero del negocio.
@@ -42,10 +42,47 @@ function formatPrice(value) {
 }
 
 export default function StoreModule({ seller = {}, offers = [], primaryColor }) {
-  const accent = primaryColor || seller.business_primary_color || '#2563eb';
+  const stylesConfig = useMemo(() => {
+    let cfg = {
+      primary: "#2563eb",
+      bg: "#ffffff",
+      text: "#1f2933",
+      btnBg: "#2563eb",
+      btnText: "#ffffff",
+      font: "Plus Jakarta Sans"
+    };
+    
+    if (primaryColor && typeof primaryColor === 'object') {
+      cfg = { ...cfg, ...primaryColor };
+    } else {
+      const colorVal = primaryColor || seller.business_primary_color;
+      if (colorVal) {
+        if (typeof colorVal === 'string' && colorVal.trim().startsWith("{")) {
+          try {
+            const parsed = JSON.parse(colorVal);
+            cfg = { ...cfg, ...parsed };
+          } catch (e) {
+            cfg.primary = colorVal;
+            cfg.btnBg = colorVal;
+          }
+        } else if (typeof colorVal === 'string') {
+          cfg.primary = colorVal;
+          cfg.btnBg = colorVal;
+        }
+      }
+    }
+    return cfg;
+  }, [primaryColor, seller.business_primary_color]);
 
-  // Estilo en linea solo para exponer el acento como variable CSS local.
-  const accentStyle = { '--sm-accent': accent };
+  const accentStyle = {
+    '--sm-accent': stylesConfig.primary,
+    '--sm-bg-1': stylesConfig.bg,
+    '--sm-bg-2': stylesConfig.bg === '#ffffff' || stylesConfig.bg === '#fff' ? '#f6f8fc' : `color-mix(in srgb, ${stylesConfig.primary} 4%, ${stylesConfig.bg})`,
+    '--sm-text': stylesConfig.text,
+    '--sm-text-soft': `color-mix(in srgb, ${stylesConfig.text} 70%, ${stylesConfig.bg})`,
+    '--sm-accent-soft': `color-mix(in srgb, ${stylesConfig.primary} 12%, ${stylesConfig.bg})`,
+    'fontFamily': `'${stylesConfig.font}', 'Plus Jakarta Sans', sans-serif`
+  };
 
   const title =
     seller.business_name || 'Bienvenido a nuestra tienda';
@@ -82,6 +119,7 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
               href={waWelcome}
               target="_blank"
               rel="noopener noreferrer"
+              style={{ background: stylesConfig.btnBg, color: stylesConfig.btnText }}
             >
               <span className="sm-btn-icon" aria-hidden="true">💬</span>
               Escríbenos por WhatsApp
@@ -177,6 +215,7 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
                           href={waOffer}
                           target="_blank"
                           rel="noopener noreferrer"
+                          style={{ background: stylesConfig.btnBg, color: stylesConfig.btnText }}
                         >
                           <span className="sm-btn-icon" aria-hidden="true">💬</span>
                           Lo quiero
