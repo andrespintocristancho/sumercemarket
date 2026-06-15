@@ -1,0 +1,164 @@
+/*
+  seller-automotive-dark.css
+  ─────────────────────────────────────────────────────────────────
+  Corrección de cards para la plantilla oscura (sp-layout-automotive).
+  SOLO aplica dentro de .sp-layout-automotive.
+  No afecta: .sp-layout-elegant, .sp-layout-retail, .sp-layout-services.
+  ─────────────────────────────────────────────────────────────────
+*/
+
+/* ── VARIABLES LOCALES DARK ─────────────────────────────────── */
+.sp-layout-automotive {
+  --auto-card-bg:        #1a1e2e;
+  --auto-card-bg-hover:  #22273a;
+  --auto-card-border:    rgba(255, 255, 255, 0.07);
+  --auto-card-shadow:    0 4px 24px rgba(0, 0, 0, 0.45);
+  --auto-card-glow:      0 0 18px rgba(255, 165, 0, 0.18);
+  --auto-text-primary:   #f0f2f8;
+  --auto-text-secondary: #a0a8c0;
+  --auto-price-color:    #f4a200;
+  --auto-badge-bg:       rgba(244, 162, 0, 0.15);
+  --auto-badge-color:    #f4a200;
+  --auto-tag-bg:         rgba(255, 255, 255, 0.08);
+  --auto-tag-color:      #c8cfe8;
+  --auto-icon-bg:        rgba(255, 255, 255, 0.06);
+}
+
+/* ── CARDS GENERALES ────────────────────────────────────────── */
+.sp-layout-automotive .sp-card,
+.sp-layout-automotive .sp-card-service,
+.sp-layout-automotive .sp-card-offer,
+.sp-layout-automotive .sp-about-card,
+.sp-layout-automotive .sp-hours-card,
+.sp-layout-automotive .sp-location-card {
+  background: var(--auto-card-bg) !important;
+  border: 1px solid var(--auto-card-border) !important;
+  box-shadow: var(--auto-card-shadow) !important;
+  color: var(--auto-text-primary) !important;
+}
+
+/* ── HOVER CON GLOW ─────────────────────────────────────────── */
+.sp-layout-automotive .sp-card:hover,
+.sp-layout-automotive .sp-card-service:hover,
+.sp-layout-automotive .sp-card-offer:hover,
+.sp-layout-automotive .sp-about-card:hover,
+.sp-layout-automotive .sp-hours-card:hover,
+.sp-layout-automotive .sp-location-card:hover {
+  background: var(--auto-card-bg-hover) !important;
+  box-shadow: var(--auto-card-shadow), var(--auto-card-glow) !important;
+  border-color: rgba(244, 162, 0, 0.25) !important;
+  transform: translateY(-2px);
+  transition: all 0.25s ease;
+}
+
+/* ── TEXTO PRINCIPAL ────────────────────────────────────────── */
+.sp-layout-automotive .sp-card h1,
+.sp-layout-automotive .sp-card h2,
+.sp-layout-automotive .sp-card h3,
+.sp-layout-automotive .sp-card h4,
+.sp-layout-automotive .sp-card h5,
+.sp-layout-automotive .sp-card h6,
+.sp-layout-automotive .sp-card-service h1,
+.sp-layout-automotive .sp-card-service h2,
+.sp-layout-automotive .sp-card-service h3,
+.sp-layout-automotive .sp-card-service h4,
+.sp-layout-automotive .sp-card-offer h1,
+.sp-layout-automotive .sp-card-offer h2,
+.sp-layout-automotive .sp-card-offer h3,
+.sp-layout-automotive .sp-card-offer h4,
+.sp-layout-automotive .sp-about-card h1,
+.sp-layout-automotive .sp-about-card h2,
+.sp-layout-automotive .sp-about-card h3,
+.sp-layout-automotive .sp-hours-card h3,
+.sp-layout-automotive .sp-hours-card h4,
+.sp-layout-automotive .sp-location-card h3,
+.sp-layout-automotive .sp-location-card h4 {
+  color: var(--auto-text-primary) !important;
+}
+
+/* ── TEXTO SECUNDARIO / DESCRIPCIÓN ─────────────────────────── */
+.sp-layout-automotive .sp-card p,
+.sp-layout-automotive .sp-card span,
+.sp-layout-automotive .sp-card-service p,
+.sp-layout-automotive .sp-card-service span,
+.sp-layout-automotive .sp-card-offer p,
+.sp-layout-automotive .sp-about-card p,
+.sp-layout-automotive .sp-hours-card p,
+.sp-layout-automotive .sp-hours-card span,
+.sp-layout-automotive .sp-location-card p,
+.sp-layout-automotive .sp-location-card span {
+  color: var(--auto-text-secondary) !important;
+}
+
+/* ── CUERPO DE OFERTA ───────────────────────────────────────── */
+.sp-layout-automotive .sp-offer-body {
+  background: var(--auto-card-bg) !important;
+  color: var(--auto-text-primary) !important;
+  border-top: 1px solid var(--auto-card-border) !important;
+}
+
+.sp-layout-automotive .sp-offer-body p,
+.sp-layout-automotive .sp-offer-body span {
+  color: var(--auto-text-secondary) !important;
+}
+
+/* ── PRECIOS ────────────────────────────────────────────────── */
+.sp-layout-automotive .sp-offer-price,
+.sp-layout-automotive .sp-price,
+.sp-layout-automotive [class*="price"] {
+  color: var(--auto-price-color) !important;
+  font-weight: 700 !important;
+}
+
+/* ── TAGS ────────────────────────────────────────────────────── */
+.sp-layout-automotive .sp-tag {
+  background: var(--auto-tag-bg) !important;
+  color: var(--auto-tag-color) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ── BADGES ─────────────────────────────────────────────────── */
+.sp-layout-automotive .sp-badge {
+  background: var(--auto-badge-bg) !important;
+  color: var(--auto-badge-color) !important;
+  border: 1px solid rgba(244, 162, 0, 0.3) !important;
+  font-weight: 600;
+}
+
+/* ── ICONOS CON FONDO OSCURO ─────────────────────────────────── */
+.sp-layout-automotive .sp-card-service .sp-icon,
+.sp-layout-automotive .sp-card .sp-icon,
+.sp-layout-automotive [class*="icon-wrap"],
+.sp-layout-automotive [class*="icon-bg"] {
+  background: var(--auto-icon-bg) !important;
+  color: var(--auto-price-color) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── SEPARADORES / BORDES INTERNOS ───────────────────────────── */
+.sp-layout-automotive .sp-card hr,
+.sp-layout-automotive .sp-card-offer hr,
+.sp-layout-automotive .sp-about-card hr {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── INPUTS / FORMS DENTRO DE CARDS (si aplica) ─────────────── */
+.sp-layout-automotive .sp-card input,
+.sp-layout-automotive .sp-card textarea,
+.sp-layout-automotive .sp-card select {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--auto-text-primary) !important;
+  border: 1px solid var(--auto-card-border) !important;
+}
+
+/* ── GARANTIA: nunca card blanca en automotive ───────────────── */
+.sp-layout-automotive .sp-card,
+.sp-layout-automotive .sp-card-service,
+.sp-layout-automotive .sp-card-offer,
+.sp-layout-automotive .sp-about-card,
+.sp-layout-automotive .sp-hours-card,
+.sp-layout-automotive .sp-location-card,
+.sp-layout-automotive .sp-offer-body {
+  background-color: var(--auto-card-bg) !important;
+  color: var(--auto-text-primary) !important;
+}
