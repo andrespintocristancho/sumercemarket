@@ -36,10 +36,12 @@ const SAFE_THEMES = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TEMAS OSCUROS ORIGINALES A OCULTAR
+   TEMAS OSCUROS / OSCUROS SUAVES A OCULTAR
+   Incluye los originales del sidebar + los del bloque "🌙 Oscuros Suaves"
    ═══════════════════════════════════════════════════════════════════ */
 
 const DARK_THEMES_TO_HIDE = [
+  // Oscuros originales
   'Elegancia Oscura',
   'Oro Lujoso',
   'Techno Futurista',
@@ -49,6 +51,20 @@ const DARK_THEMES_TO_HIDE = [
   'Carros Premium',
   'Calzado Urbano',
   'Tecnología Neón',
+  // Oscuros Suaves (a eliminar por completo)
+  'Azul Noche Suave',
+  'Verde Bosque Claro',
+  'Vino Elegante',
+  'Chocolate Premium',
+  'Grafito Suave',
+  'Petróleo Moderno',
+];
+
+/* Textos de separadores/títulos que deben ocultarse */
+const DARK_SECTION_LABELS = [
+  '🌙 Oscuros Suaves',
+  'Oscuros Suaves',
+  '🌙',
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -262,17 +278,64 @@ function createThemeButton(theme, container) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   OCULTAR TEMAS OSCUROS ORIGINALES
+   OCULTAR TEMAS OSCUROS ORIGINALES + BLOQUE "OSCUROS SUAVES"
    ═══════════════════════════════════════════════════════════════════ */
 
 function hideDarkThemes() {
+  // 1) Ocultar botones de temas (oscuros y "Oscuros Suaves") por nombre
   const buttons = document.querySelectorAll(
     '.bp-sidebar-section button, .bp-sidebar button',
   );
   buttons.forEach((btn) => {
+    // No tocar nuestros propios botones inyectados
+    if (btn.classList.contains('safe-extra-theme-btn')) return;
     const txt = btn.textContent?.trim();
     if (txt && DARK_THEMES_TO_HIDE.some((n) => txt.includes(n))) {
       btn.style.display = 'none';
+    }
+  });
+
+  // 2) Ocultar separadores/títulos del bloque "Oscuros Suaves"
+  // Recorremos elementos del sidebar y buscamos los que contengan el texto.
+  const sidebarRoot =
+    document.querySelector('.bp-sidebar') ||
+    document.querySelector('.bp-sidebar-section')?.parentElement;
+  if (!sidebarRoot) return;
+
+  const all = sidebarRoot.querySelectorAll('div, span, p, h1, h2, h3, h4, h5, h6');
+  all.forEach((el) => {
+    // Excluir nuestros propios contenedores
+    if (el.id === 'safe-extra-themes' || el.closest('#safe-extra-themes')) return;
+    if (el.id === 'safe-card-text-control' || el.closest('#safe-card-text-control')) return;
+
+    // Solo si el elemento es prácticamente solo texto (no contenedor grande)
+    const txt = (el.textContent || '').trim();
+    if (!txt) return;
+
+    const isSeparatorMatch = DARK_SECTION_LABELS.some((label) => txt === label || txt.startsWith(label));
+    if (isSeparatorMatch && el.children.length === 0) {
+      el.style.display = 'none';
+
+      // Intentar ocultar también el grid hermano inmediato (los botones del bloque)
+      let sibling = el.nextElementSibling;
+      let safety = 0;
+      while (sibling && safety < 3) {
+        const sTxt = (sibling.textContent || '').trim();
+        // Si el hermano contiene alguno de los nombres del bloque oscuros suaves, ocultar
+        const containsDarkSoft = [
+          'Azul Noche Suave',
+          'Verde Bosque Claro',
+          'Vino Elegante',
+          'Chocolate Premium',
+          'Grafito Suave',
+          'Petróleo Moderno',
+        ].some((n) => sTxt.includes(n));
+        if (containsDarkSoft) {
+          sibling.style.display = 'none';
+        }
+        sibling = sibling.nextElementSibling;
+        safety++;
+      }
     }
   });
 }
@@ -333,7 +396,7 @@ function injectCardTextControl() {
   section.innerHTML = `
     <div class="bp-sidebar-title">Color Texto en Cajas</div>
     <div class="bp-color-row">
-      <div id="safe-card-text-swatch" class="bp-color-swatch" style="background:${initialColor};">
+      <div id="safe-card-text-swatch" class="bp-color-swatch" style="background:${initialColor};position:relative;">
         <input
           id="safe-card-text-input"
           type="color"
@@ -374,13 +437,10 @@ function patchSaveForCardText() {
   if (savePatched) return;
   savePatched = true;
 
-  // Observar clics en botones de guardar para inyectar cardText
-  // BusinessProfile usa supabase.from('profiles').update(...) que internamente
-  // usa fetch. Interceptamos las llamadas para añadir cardText al JSON.
   const originalFetch = window.fetch;
   window.fetch = function (...args) {
     try {
-      const [url, options] = args;
+      const [, options] = args;
       if (
         options &&
         options.method &&
@@ -417,24 +477,6 @@ function patchSaveForCardText() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   RESTAURAR cardText DESDE EL JSON CARGADO
-   Lee el valor actual de business_primary_color del DOM y restaura
-   el valor de cardText si existe.
-   ═══════════════════════════════════════════════════════════════════ */
-
-function restoreCardTextFromJSON() {
-  const cardTextInput = document.querySelector('#safe-card-text-input');
-  if (!cardTextInput) return;
-
-  // Buscar el valor actual en la preview o en algún meta
-  // Estrategia: buscar en el DOM un script o data attribute que contenga
-  // el JSON completo. Alternativa: interceptar la respuesta de carga.
-  // Usamos la estrategia más confiable: leer del mismo color picker de text
-  // ya que cardText suele coincidir con text al inicio.
-  // El valor real se restaurará desde Supabase via fetch intercept en carga.
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
    INTERCEPTAR LA CARGA INICIAL PARA RESTAURAR cardText
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -444,14 +486,6 @@ function patchLoadForCardText() {
   if (loadPatched) return;
   loadPatched = true;
 
-  const originalFetch = window.fetch;
-  // Ya parcheamos fetch en patchSaveForCardText, así que reutilizamos
-  // la referencia. En vez de parchear de nuevo, usamos un approach
-  // diferente: escuchar cambios en el DOM para detectar cuando el
-  // color picker de text cambia (indicando que se cargó el perfil)
-  // y luego intentar extraer cardText del JSON.
-
-  // Alternativa más robusta: interceptar la respuesta GET
   const patchedFetch = window.fetch;
   window.fetch = function (...args) {
     const result = patchedFetch.apply(this, args);
@@ -459,11 +493,10 @@ function patchLoadForCardText() {
       const [url] = args;
       if (typeof url === 'string' && url.includes('profiles') && url.includes('select')) {
         result.then((response) => {
-          // Clonar la respuesta para no consumirla
           const cloned = response.clone();
           cloned.json().then((data) => {
             try {
-              let profileData = Array.isArray(data) ? data[0] : data;
+              const profileData = Array.isArray(data) ? data[0] : data;
               if (profileData && profileData.business_primary_color) {
                 let colorObj;
                 try {
@@ -475,7 +508,6 @@ function patchLoadForCardText() {
                   colorObj = null;
                 }
                 if (colorObj && colorObj.cardText) {
-                  // Esperar a que el control esté en el DOM
                   const tryRestore = () => {
                     const inp = document.querySelector('#safe-card-text-input');
                     const swatch = document.querySelector('#safe-card-text-swatch');
@@ -528,6 +560,7 @@ export default function BusinessProfileSafe() {
     const t1 = setTimeout(run, 400);
     const t2 = setTimeout(run, 1000);
     const t3 = setTimeout(run, 2500);
+    const t4 = setTimeout(run, 5000);
 
     // MutationObserver: re-inyectar si React recrea el DOM
     const observer = new MutationObserver(() => {
@@ -546,6 +579,7 @@ export default function BusinessProfileSafe() {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
       observer.disconnect();
     };
   }, []);
