@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   seller-card-text-override.css
+   ─────────────────────────────
+   Aplica la variable --sm-card-text (generada por StoreModule.jsx)
+   a todos los textos dentro de tarjetas de ofertas, beneficios y servicios.
+   
+   Si --sm-card-text no está definida, hereda de --sm-text (fallback seguro).
+   Este archivo es aditivo: no sobreescribe estilos existentes, solo
+   agrega la regla de color para textos dentro de cards.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Offer cards ─────────────────────────────────────────────────── */
+.sm-offer-card .sm-offer-body {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-offer-card .sm-offer-title {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-offer-card .sm-offer-desc {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+.sm-offer-card .sm-offer-prices .sm-offer-price {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-offer-card .sm-offer-prices .sm-offer-oldprice {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+/* ── Benefit cards ───────────────────────────────────────────────── */
+.sm-benefit-card {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-benefit-card h4 {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-benefit-card p {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+/* ── Service cards (usados en templates como services/health) ──── */
+.sm-service-card {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-service-card h4 {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sm-service-card p {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+/* ── SellerPage cards (sp-offer-card, sp-service-card) ───────────
+   SellerPage.jsx usa clases sp-* en las tarjetas de la página pública.
+   Estos selectores aplican cardText también a esas tarjetas para
+   que el color personalizado se vea en /seller/:slug.
+   ──────────────────────────────────────────────────────────────── */
+.sp-offer-card {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sp-offer-card .sp-offer-title,
+.sp-offer-card h4 {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sp-offer-card .sp-offer-desc,
+.sp-offer-card .sp-offer-description {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+.sp-offer-card .sp-offer-price {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sp-service-card {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sp-service-card h4 {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.sp-service-card p {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
+
+/* ── Glassmorphism / hover cards genéricos ─────────────────────── */
+.seller-page-wrapper .offer-card,
+.seller-page-wrapper .service-card,
+.seller-page-wrapper .benefit-card {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.seller-page-wrapper .offer-card h4,
+.seller-page-wrapper .service-card h4,
+.seller-page-wrapper .benefit-card h4 {
+  color: var(--sm-card-text, var(--sm-text, inherit));
+}
+
+.seller-page-wrapper .offer-card p,
+.seller-page-wrapper .service-card p,
+.seller-page-wrapper .benefit-card p {
+  color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
+}
