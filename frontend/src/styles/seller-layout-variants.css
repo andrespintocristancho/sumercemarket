@@ -439,6 +439,193 @@
 
 
 /* ==========================================================================
+   4.b) AUTOMOTIVE - FIX CARDS BLANCAS (oscuro premium completo)
+   --------------------------------------------------------------------------
+   Cubre todas las clases reales de cards/secciones para forzar fondo oscuro,
+   texto legible y badges con contraste. Importante: no afecta a elegant,
+   retail ni services. Solo aplica dentro de .sp-layout-automotive.
+   ========================================================================== */
+
+/* Forzar fondo oscuro en cualquier card/seccion alterna dentro de automotive */
+.sp-layout-automotive .sp-card,
+.sp-layout-automotive .sp-card-service,
+.sp-layout-automotive .sp-card-offer,
+.sp-layout-automotive .sp-card-featured,
+.sp-layout-automotive .sp-about-card,
+.sp-layout-automotive .sp-hours-card,
+.sp-layout-automotive .sp-location-card,
+.sp-layout-automotive .sp-info-card,
+.sp-layout-automotive .sp-service-card,
+.sp-layout-automotive .sp-offer-card,
+.sp-layout-automotive .sp-offer-body,
+.sp-layout-automotive .sp-section-alt {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: var(--sp-variant-radius);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--sp-variant-text);
+}
+
+/* Seccion alterna como banda oscura, no banda blanca */
+.sp-layout-automotive .sp-section-alt {
+  background: linear-gradient(180deg, #0b1224 0%, #0f172a 100%) !important;
+  border-radius: 0;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Textos legibles dentro de cards oscuras */
+.sp-layout-automotive .sp-card,
+.sp-layout-automotive .sp-card *,
+.sp-layout-automotive .sp-card-service,
+.sp-layout-automotive .sp-card-service *,
+.sp-layout-automotive .sp-card-offer,
+.sp-layout-automotive .sp-card-offer *,
+.sp-layout-automotive .sp-card-featured,
+.sp-layout-automotive .sp-card-featured *,
+.sp-layout-automotive .sp-about-card,
+.sp-layout-automotive .sp-about-card *,
+.sp-layout-automotive .sp-hours-card,
+.sp-layout-automotive .sp-hours-card *,
+.sp-layout-automotive .sp-location-card,
+.sp-layout-automotive .sp-location-card *,
+.sp-layout-automotive .sp-info-card,
+.sp-layout-automotive .sp-info-card *,
+.sp-layout-automotive .sp-service-card,
+.sp-layout-automotive .sp-service-card *,
+.sp-layout-automotive .sp-offer-card,
+.sp-layout-automotive .sp-offer-card *,
+.sp-layout-automotive .sp-offer-body,
+.sp-layout-automotive .sp-offer-body * {
+  color: var(--sp-variant-text);
+}
+
+/* Titulos dentro de cards en blanco roto */
+.sp-layout-automotive .sp-card h1,
+.sp-layout-automotive .sp-card h2,
+.sp-layout-automotive .sp-card h3,
+.sp-layout-automotive .sp-card h4,
+.sp-layout-automotive .sp-card-service h3,
+.sp-layout-automotive .sp-card-service h4,
+.sp-layout-automotive .sp-card-offer h3,
+.sp-layout-automotive .sp-card-offer h4,
+.sp-layout-automotive .sp-card-featured h3,
+.sp-layout-automotive .sp-card-featured h4,
+.sp-layout-automotive .sp-about-card h2,
+.sp-layout-automotive .sp-about-card h3,
+.sp-layout-automotive .sp-hours-card h3,
+.sp-layout-automotive .sp-location-card h3,
+.sp-layout-automotive .sp-offer-body h3,
+.sp-layout-automotive .sp-offer-body h4 {
+  color: #f8fafc !important;
+}
+
+/* Descripciones / parrafos atenuados pero legibles */
+.sp-layout-automotive .sp-card p,
+.sp-layout-automotive .sp-card .sp-desc,
+.sp-layout-automotive .sp-card-service p,
+.sp-layout-automotive .sp-card-offer p,
+.sp-layout-automotive .sp-card-featured p,
+.sp-layout-automotive .sp-about-card p,
+.sp-layout-automotive .sp-hours-card p,
+.sp-layout-automotive .sp-hours-card li,
+.sp-layout-automotive .sp-location-card p,
+.sp-layout-automotive .sp-offer-body p,
+.sp-layout-automotive .sp-offer-body .sp-desc {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+/* Iconos / cajitas de icono con fondo oscuro mas claro y acento calido */
+.sp-layout-automotive .sp-icon,
+.sp-layout-automotive .sp-icon-box,
+.sp-layout-automotive .sp-card-service .sp-icon,
+.sp-layout-automotive .sp-card-service .sp-icon-box,
+.sp-layout-automotive .sp-about-card .sp-icon,
+.sp-layout-automotive .sp-hours-card .sp-icon,
+.sp-layout-automotive .sp-location-card .sp-icon,
+.sp-layout-automotive .sp-info-card .sp-icon {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--sp-variant-accent-warm) !important;
+  border-radius: 12px;
+}
+
+/* Tags chips dentro de cards oscuras */
+.sp-layout-automotive .sp-tags {
+  gap: 8px;
+}
+.sp-layout-automotive .sp-tag {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  padding: 4px 10px;
+  text-transform: none;
+}
+
+/* Precio dentro del cuerpo de oferta oscuro: naranja calido destacado */
+.sp-layout-automotive .sp-offer-body .sp-price,
+.sp-layout-automotive .sp-card-offer .sp-price,
+.sp-layout-automotive .sp-offer-price {
+  color: var(--sp-variant-accent-warm) !important;
+  font-weight: 800;
+}
+
+.sp-layout-automotive .sp-offer-body .sp-old-price,
+.sp-layout-automotive .sp-card-offer .sp-old-price,
+.sp-layout-automotive .sp-offer-old-price {
+  color: rgba(255, 255, 255, 0.45) !important;
+  text-decoration: line-through;
+}
+
+/* Hover premium: glow calido sin volver la card blanca */
+.sp-layout-automotive .sp-card:hover,
+.sp-layout-automotive .sp-card-service:hover,
+.sp-layout-automotive .sp-card-offer:hover,
+.sp-layout-automotive .sp-card-featured:hover,
+.sp-layout-automotive .sp-about-card:hover,
+.sp-layout-automotive .sp-hours-card:hover,
+.sp-layout-automotive .sp-location-card:hover,
+.sp-layout-automotive .sp-info-card:hover,
+.sp-layout-automotive .sp-service-card:hover,
+.sp-layout-automotive .sp-offer-card:hover {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(249, 115, 22, 0.55) !important;
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(249, 115, 22, 0.18),
+    0 12px 30px rgba(249, 115, 22, 0.22) !important;
+}
+
+/* Divider/borde inferior interno tenue */
+.sp-layout-automotive .sp-card hr,
+.sp-layout-automotive .sp-card-offer hr,
+.sp-layout-automotive .sp-offer-body hr,
+.sp-layout-automotive .sp-about-card hr {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Inputs / placeholders dentro de cards oscuras (por si aparecen) */
+.sp-layout-automotive .sp-card input,
+.sp-layout-automotive .sp-card textarea,
+.sp-layout-automotive .sp-card-offer input,
+.sp-layout-automotive .sp-card-offer textarea {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+
+/* ==========================================================================
    RESPONSIVE GUARDS (no rompe layouts existentes)
    ========================================================================== */
 @media (max-width: 768px) {
@@ -452,6 +639,12 @@
   }
   .sp-layout-automotive .sp-card:hover,
   .sp-layout-automotive .sp-offer-card:hover,
+  .sp-layout-automotive .sp-card-service:hover,
+  .sp-layout-automotive .sp-card-offer:hover,
+  .sp-layout-automotive .sp-card-featured:hover,
+  .sp-layout-automotive .sp-about-card:hover,
+  .sp-layout-automotive .sp-hours-card:hover,
+  .sp-layout-automotive .sp-location-card:hover,
   .sp-layout-elegant .sp-card:hover,
   .sp-layout-elegant .sp-offer-card:hover,
   .sp-layout-retail .sp-offer-card:hover {
