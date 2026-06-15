@@ -6,6 +6,7 @@ import './App.css';
 import './styles/seller-premium.css';
 import './styles/seller-premium-overrides.css';
 import './styles/seller-layout-variants.css';
+import './styles/seller-card-text-override.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
