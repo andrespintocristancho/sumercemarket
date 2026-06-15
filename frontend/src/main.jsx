@@ -5,6 +5,7 @@ import App from './App.jsx';
 import './App.css';
 import './styles/seller-premium.css';
 import './styles/seller-premium-overrides.css';
+import './styles/seller-layout-variants.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
