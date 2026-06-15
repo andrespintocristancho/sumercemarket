@@ -4,18 +4,17 @@ import BusinessProfile from './BusinessProfile';
 /**
  * BusinessProfileSafe
  * Wrapper seguro que renderiza BusinessProfile, oculta temas oscuros
- * e inyecta temas nuevos claros/pastel + oscuros suaves (NO negros).
+ * e inyecta temas nuevos claros + control "Color texto en cajas" (cardText).
  *
  * Usa MutationObserver + ejecución al montar para garantizar inyección.
- * Bloque inyectado: id="safe-extra-themes"
+ * Bloque inyectado: id="safe-extra-themes" + id="safe-card-text-control"
  */
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TEMAS NUEVOS
+   TEMAS NUEVOS (SOLO CLAROS/PROFESIONALES)
    ═══════════════════════════════════════════════════════════════════ */
 
 const SAFE_THEMES = [
-  // ─── CLAROS ───
   { name: 'Azul Ejecutivo',      primary: '#1e40af', bg: '#f0f4ff', text: '#1e293b', btnBg: '#1e40af', btnText: '#ffffff', font: 'Plus Jakarta Sans' },
   { name: 'Verde Natural',       primary: '#15803d', bg: '#f0fdf4', text: '#14532d', btnBg: '#15803d', btnText: '#ffffff', font: 'Nunito' },
   { name: 'Arena Boutique',      primary: '#a16207', bg: '#fefce8', text: '#422006', btnBg: '#a16207', btnText: '#ffffff', font: 'Playfair Display' },
@@ -34,16 +33,7 @@ const SAFE_THEMES = [
   { name: 'Lila Comercial',      primary: '#9333ea', bg: '#faf5ff', text: '#581c87', btnBg: '#9333ea', btnText: '#ffffff', font: 'Montserrat' },
   { name: 'Salmón Moderno',      primary: '#ea580c', bg: '#fff7ed', text: '#7c2d12', btnBg: '#ea580c', btnText: '#ffffff', font: 'Nunito' },
   { name: 'Crema Natural',       primary: '#65a30d', bg: '#fefce8', text: '#365314', btnBg: '#65a30d', btnText: '#ffffff', font: 'Lato' },
-  // ─── OSCUROS SUAVES ───
-  { name: 'Azul Noche Suave',    primary: '#60a5fa', bg: '#1e3a5f', text: '#e0f2fe', btnBg: '#60a5fa', btnText: '#1e3a5f', font: 'Inter' },
-  { name: 'Verde Bosque Claro',  primary: '#4ade80', bg: '#1a3a2a', text: '#dcfce7', btnBg: '#4ade80', btnText: '#1a3a2a', font: 'Plus Jakarta Sans' },
-  { name: 'Vino Elegante',       primary: '#f472b6', bg: '#4a1942', text: '#fce7f3', btnBg: '#f472b6', btnText: '#4a1942', font: 'Playfair Display' },
-  { name: 'Chocolate Premium',   primary: '#fbbf24', bg: '#3d2b1f', text: '#fef3c7', btnBg: '#fbbf24', btnText: '#3d2b1f', font: 'Outfit' },
-  { name: 'Grafito Suave',       primary: '#a78bfa', bg: '#374151', text: '#f3f4f6', btnBg: '#a78bfa', btnText: '#1f2937', font: 'DM Sans' },
-  { name: 'Petróleo Moderno',    primary: '#22d3ee', bg: '#164e63', text: '#cffafe', btnBg: '#22d3ee', btnText: '#164e63', font: 'Montserrat' },
 ];
-
-const LIGHT_COUNT = 18; // primeros 18 son claros
 
 /* ═══════════════════════════════════════════════════════════════════════
    TEMAS OSCUROS ORIGINALES A OCULTAR
@@ -99,12 +89,18 @@ function isBackgroundDark(hex) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function applyInjectedTheme(theme) {
-  // Color pickers: primary, bg, text, btnBg, btnText (en ese orden)
+  // Color pickers en el sidebar: primary, bg, text, btnBg, btnText (en ese orden)
   const colorInputs = document.querySelectorAll(
     '.bp-sidebar input[type="color"], .bp-sidebar-section input[type="color"]',
   );
+
+  // Filtrar solo los 5 originales del sidebar (excluir nuestro cardText inyectado)
+  const originalInputs = Array.from(colorInputs).filter(
+    (inp) => !inp.closest('#safe-card-text-control'),
+  );
+
   const vals = [theme.primary, theme.bg, theme.text, theme.btnBg, theme.btnText];
-  colorInputs.forEach((inp, i) => {
+  originalInputs.forEach((inp, i) => {
     if (i < vals.length) setNativeColorValue(inp, vals[i]);
   });
 
@@ -118,6 +114,16 @@ function applyInjectedTheme(theme) {
     );
     if (hasFont && theme.font) setNativeSelectValue(sel, theme.font);
   });
+
+  // Sincronizar cardText con el text del tema
+  const cardTextInput = document.querySelector('#safe-card-text-input');
+  if (cardTextInput) {
+    setNativeColorValue(cardTextInput, theme.text);
+    const swatch = document.querySelector('#safe-card-text-swatch');
+    if (swatch) swatch.style.background = theme.text;
+    const hexLabel = document.querySelector('#safe-card-text-hex');
+    if (hexLabel) hexLabel.textContent = theme.text;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -130,20 +136,18 @@ function findThemesGrid() {
   for (const sec of sections) {
     const title = sec.querySelector('.bp-sidebar-title');
     if (title && /temas/i.test(title.textContent)) {
-      // Buscar un div con display grid dentro
       const divs = sec.querySelectorAll('div');
       for (const d of divs) {
         const cs = window.getComputedStyle(d);
         if (cs.display === 'grid') return { grid: d, section: sec };
       }
-      // Fallback: inline style con "grid"
       for (const d of divs) {
         if ((d.getAttribute('style') || '').includes('grid')) return { grid: d, section: sec };
       }
     }
   }
 
-  // Estrategia 2: cualquier elemento con textContent "Temas Rápidos"
+  // Estrategia 2: TreeWalker
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
   while (walker.nextNode()) {
     const el = walker.currentNode;
@@ -164,6 +168,34 @@ function findThemesGrid() {
     }
   }
   return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUSCAR SECCIÓN "COLOR DE LETRA" PARA INSERTAR DESPUÉS
+   ═══════════════════════════════════════════════════════════════════ */
+
+function findColorDeLetraSection() {
+  const sections = document.querySelectorAll('.bp-sidebar-section');
+  for (const sec of sections) {
+    const title = sec.querySelector('.bp-sidebar-title');
+    if (title && /color\s+de\s+letra/i.test(title.textContent)) {
+      return sec;
+    }
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   OBTENER VALOR ACTUAL DEL "COLOR DE LETRA" (texto general)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function getCurrentTextColor() {
+  const letraSec = findColorDeLetraSection();
+  if (letraSec) {
+    const inp = letraSec.querySelector('input[type="color"]');
+    if (inp) return inp.value;
+  }
+  return '#0f172a';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -216,12 +248,11 @@ function createThemeButton(theme, container) {
     e.preventDefault();
     e.stopPropagation();
     applyInjectedTheme(theme);
-    // Feedback: resaltar el seleccionado
+    // Feedback visual
     container.querySelectorAll('.safe-extra-theme-btn').forEach((b) => {
       const d = isBackgroundDark(b.dataset.themeBg);
       b.style.borderColor = d ? b.dataset.themePrimary + '55' : '#cbd5e1';
       b.style.boxShadow = 'none';
-      b.style.fontWeight = '';
     });
     btn.style.borderColor = theme.primary;
     btn.style.boxShadow = `0 0 0 2px ${theme.primary}40`;
@@ -247,11 +278,10 @@ function hideDarkThemes() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   INYECTAR BLOQUE DE TEMAS NUEVOS
+   INYECTAR BLOQUE DE TEMAS NUEVOS (SOLO CLAROS)
    ═══════════════════════════════════════════════════════════════════ */
 
 function injectNewThemes() {
-  // Si ya existe, no duplicar
   if (document.getElementById('safe-extra-themes')) return;
 
   const found = findThemesGrid();
@@ -259,7 +289,6 @@ function injectNewThemes() {
 
   const { section } = found;
 
-  // Crear bloque contenedor
   const wrapper = document.createElement('div');
   wrapper.id = 'safe-extra-themes';
   wrapper.style.cssText = 'margin-top: 12px;';
@@ -275,29 +304,205 @@ function injectNewThemes() {
   const gridLight = document.createElement('div');
   gridLight.style.cssText =
     'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
-  SAFE_THEMES.slice(0, LIGHT_COUNT).forEach((t) => {
+  SAFE_THEMES.forEach((t) => {
     gridLight.appendChild(createThemeButton(t, wrapper));
   });
   wrapper.appendChild(gridLight);
 
-  // ── Separador: Oscuros Suaves ──
-  const sepDark = document.createElement('div');
-  sepDark.style.cssText =
-    'text-align:center;font-size:11px;font-weight:700;color:#64748b;padding:10px 0 6px;border-top:1px solid #e2e8f0;margin-top:8px;letter-spacing:0.5px;text-transform:uppercase;';
-  sepDark.textContent = '🌙 Oscuros Suaves';
-  wrapper.appendChild(sepDark);
-
-  // ── Grid de temas oscuros suaves ──
-  const gridDark = document.createElement('div');
-  gridDark.style.cssText =
-    'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
-  SAFE_THEMES.slice(LIGHT_COUNT).forEach((t) => {
-    gridDark.appendChild(createThemeButton(t, wrapper));
-  });
-  wrapper.appendChild(gridDark);
-
-  // Insertar después de la sección de temas rápidos
   section.appendChild(wrapper);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INYECTAR CONTROL "COLOR TEXTO EN CAJAS" (cardText)
+   Aparece justo después de la sección "Color de Letra".
+   Se sincroniza con el JSON de guardado interceptando el botón Guardar.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function injectCardTextControl() {
+  if (document.getElementById('safe-card-text-control')) return;
+
+  const letraSec = findColorDeLetraSection();
+  if (!letraSec) return;
+
+  const initialColor = getCurrentTextColor();
+
+  // Crear sección que replica el estilo de las secciones existentes
+  const section = document.createElement('div');
+  section.id = 'safe-card-text-control';
+  section.className = 'bp-sidebar-section';
+  section.innerHTML = `
+    <div class="bp-sidebar-title">Color Texto en Cajas</div>
+    <div class="bp-color-row">
+      <div id="safe-card-text-swatch" class="bp-color-swatch" style="background:${initialColor};">
+        <input
+          id="safe-card-text-input"
+          type="color"
+          value="${initialColor}"
+          style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;"
+        />
+      </div>
+      <span id="safe-card-text-hex" class="bp-color-hex" style="font-size:13px;color:#64748b;font-weight:600;">${initialColor}</span>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.3;">
+      Textos dentro de tarjetas, cards de ofertas y servicios.
+    </div>
+  `;
+
+  // Insertar justo después de la sección "Color de Letra"
+  letraSec.insertAdjacentElement('afterend', section);
+
+  // Listener para actualizar swatch + hex label
+  const colorInput = section.querySelector('#safe-card-text-input');
+  const swatchEl = section.querySelector('#safe-card-text-swatch');
+  const hexLabel = section.querySelector('#safe-card-text-hex');
+
+  colorInput.addEventListener('input', () => {
+    swatchEl.style.background = colorInput.value;
+    hexLabel.textContent = colorInput.value;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTERCEPTAR EL GUARDADO PARA AÑADIR cardText AL JSON
+   Se parchea el fetch/XMLHttpRequest para detectar la actualización de
+   business_primary_color y añadir cardText al JSON antes de enviarlo.
+   ═══════════════════════════════════════════════════════════════════ */
+
+let savePatched = false;
+
+function patchSaveForCardText() {
+  if (savePatched) return;
+  savePatched = true;
+
+  // Observar clics en botones de guardar para inyectar cardText
+  // BusinessProfile usa supabase.from('profiles').update(...) que internamente
+  // usa fetch. Interceptamos las llamadas para añadir cardText al JSON.
+  const originalFetch = window.fetch;
+  window.fetch = function (...args) {
+    try {
+      const [url, options] = args;
+      if (
+        options &&
+        options.method &&
+        options.method.toUpperCase() === 'PATCH' &&
+        typeof options.body === 'string' &&
+        options.body.includes('business_primary_color')
+      ) {
+        const body = JSON.parse(options.body);
+        if (body.business_primary_color) {
+          let colorObj;
+          try {
+            colorObj =
+              typeof body.business_primary_color === 'string'
+                ? JSON.parse(body.business_primary_color)
+                : body.business_primary_color;
+          } catch {
+            colorObj = null;
+          }
+          if (colorObj && typeof colorObj === 'object') {
+            const cardTextInput = document.querySelector('#safe-card-text-input');
+            if (cardTextInput) {
+              colorObj.cardText = cardTextInput.value;
+            }
+            body.business_primary_color = JSON.stringify(colorObj);
+            args[1] = { ...options, body: JSON.stringify(body) };
+          }
+        }
+      }
+    } catch {
+      // En caso de error, no interrumpimos el guardado
+    }
+    return originalFetch.apply(this, args);
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESTAURAR cardText DESDE EL JSON CARGADO
+   Lee el valor actual de business_primary_color del DOM y restaura
+   el valor de cardText si existe.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function restoreCardTextFromJSON() {
+  const cardTextInput = document.querySelector('#safe-card-text-input');
+  if (!cardTextInput) return;
+
+  // Buscar el valor actual en la preview o en algún meta
+  // Estrategia: buscar en el DOM un script o data attribute que contenga
+  // el JSON completo. Alternativa: interceptar la respuesta de carga.
+  // Usamos la estrategia más confiable: leer del mismo color picker de text
+  // ya que cardText suele coincidir con text al inicio.
+  // El valor real se restaurará desde Supabase via fetch intercept en carga.
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTERCEPTAR LA CARGA INICIAL PARA RESTAURAR cardText
+   ═══════════════════════════════════════════════════════════════════ */
+
+let loadPatched = false;
+
+function patchLoadForCardText() {
+  if (loadPatched) return;
+  loadPatched = true;
+
+  const originalFetch = window.fetch;
+  // Ya parcheamos fetch en patchSaveForCardText, así que reutilizamos
+  // la referencia. En vez de parchear de nuevo, usamos un approach
+  // diferente: escuchar cambios en el DOM para detectar cuando el
+  // color picker de text cambia (indicando que se cargó el perfil)
+  // y luego intentar extraer cardText del JSON.
+
+  // Alternativa más robusta: interceptar la respuesta GET
+  const patchedFetch = window.fetch;
+  window.fetch = function (...args) {
+    const result = patchedFetch.apply(this, args);
+    try {
+      const [url] = args;
+      if (typeof url === 'string' && url.includes('profiles') && url.includes('select')) {
+        result.then((response) => {
+          // Clonar la respuesta para no consumirla
+          const cloned = response.clone();
+          cloned.json().then((data) => {
+            try {
+              let profileData = Array.isArray(data) ? data[0] : data;
+              if (profileData && profileData.business_primary_color) {
+                let colorObj;
+                try {
+                  colorObj =
+                    typeof profileData.business_primary_color === 'string'
+                      ? JSON.parse(profileData.business_primary_color)
+                      : profileData.business_primary_color;
+                } catch {
+                  colorObj = null;
+                }
+                if (colorObj && colorObj.cardText) {
+                  // Esperar a que el control esté en el DOM
+                  const tryRestore = () => {
+                    const inp = document.querySelector('#safe-card-text-input');
+                    const swatch = document.querySelector('#safe-card-text-swatch');
+                    const hex = document.querySelector('#safe-card-text-hex');
+                    if (inp) {
+                      setNativeColorValue(inp, colorObj.cardText);
+                      if (swatch) swatch.style.background = colorObj.cardText;
+                      if (hex) hex.textContent = colorObj.cardText;
+                    }
+                  };
+                  setTimeout(tryRestore, 500);
+                  setTimeout(tryRestore, 1500);
+                  setTimeout(tryRestore, 3000);
+                }
+              }
+            } catch {
+              // silencioso
+            }
+          }).catch(() => {});
+          return response;
+        }).catch(() => {});
+      }
+    } catch {
+      // silencioso
+    }
+    return result;
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -306,9 +511,14 @@ function injectNewThemes() {
 
 export default function BusinessProfileSafe() {
   useEffect(() => {
+    // Parchear fetch para guardar/restaurar cardText
+    patchSaveForCardText();
+    patchLoadForCardText();
+
     const run = () => {
       hideDarkThemes();
       injectNewThemes();
+      injectCardTextControl();
     };
 
     // Ejecución inmediata
@@ -324,6 +534,9 @@ export default function BusinessProfileSafe() {
       hideDarkThemes();
       if (!document.getElementById('safe-extra-themes')) {
         injectNewThemes();
+      }
+      if (!document.getElementById('safe-card-text-control')) {
+        injectCardTextControl();
       }
     });
 
