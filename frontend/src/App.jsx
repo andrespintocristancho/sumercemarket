@@ -10,7 +10,7 @@ import Publish from './pages/Publish.jsx';
 import MyOffers from './pages/MyOffers.jsx';
 import Admin from './pages/Admin.jsx';
 import OfferDetail from './pages/OfferDetail.jsx';
-import BusinessProfile from './pages/BusinessProfile.jsx';
+import BusinessProfileSafe from './pages/BusinessProfileSafe.jsx';
 import SellerPage from './pages/SellerPage.jsx';
 import SellerPageWithSEO from './pages/SellerPageWithSEO.jsx';
 import SellerPreviewPage from './pages/SellerPreviewPage.jsx';
@@ -59,7 +59,7 @@ export default function App() {
               path="/business-profile"
               element={
                 <ProtectedRoute>
-                  <BusinessProfile />
+                  <BusinessProfileSafe />
                 </ProtectedRoute>
               }
             />
