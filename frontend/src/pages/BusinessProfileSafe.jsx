@@ -8,6 +8,9 @@ import BusinessProfile from './BusinessProfile';
  *
  * Usa MutationObserver + ejecución al montar para garantizar inyección.
  * Bloque inyectado: id="safe-extra-themes" + id="safe-card-text-control"
+ *
+ * Además inyecta un <style id="safe-card-text-style"> con reglas CSS que
+ * aplican el color "cardText" SOLO a títulos/textos dentro de cards/cajas.
  */
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -37,11 +40,9 @@ const SAFE_THEMES = [
 
 /* ═══════════════════════════════════════════════════════════════════════
    TEMAS OSCUROS / OSCUROS SUAVES A OCULTAR
-   Incluye los originales del sidebar + los del bloque "🌙 Oscuros Suaves"
    ═══════════════════════════════════════════════════════════════════ */
 
 const DARK_THEMES_TO_HIDE = [
-  // Oscuros originales
   'Elegancia Oscura',
   'Oro Lujoso',
   'Techno Futurista',
@@ -51,7 +52,6 @@ const DARK_THEMES_TO_HIDE = [
   'Carros Premium',
   'Calzado Urbano',
   'Tecnología Neón',
-  // Oscuros Suaves (a eliminar por completo)
   'Azul Noche Suave',
   'Verde Bosque Claro',
   'Vino Elegante',
@@ -60,12 +60,49 @@ const DARK_THEMES_TO_HIDE = [
   'Petróleo Moderno',
 ];
 
-/* Textos de separadores/títulos que deben ocultarse */
 const DARK_SECTION_LABELS = [
   '🌙 Oscuros Suaves',
   'Oscuros Suaves',
   '🌙',
 ];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SELECTORES CARD TEXT (compartido con SellerPageWithSEO)
+   ═══════════════════════════════════════════════════════════════════ */
+
+const CARD_TEXT_SELECTORS = [
+  '.sp-card h1', '.sp-card h2', '.sp-card h3', '.sp-card h4',
+  '.sp-card-service h1', '.sp-card-service h2', '.sp-card-service h3',
+  '.sp-card-offer h1', '.sp-card-offer h2', '.sp-card-offer h3',
+  '.sp-offer-title',
+  '.sp-card-title',
+  '.sp-service-title',
+  '.sp-about-card h1', '.sp-about-card h2', '.sp-about-card h3',
+  '.sp-hours-card h1', '.sp-hours-card h2', '.sp-hours-card h3',
+  '.sp-location-card h1', '.sp-location-card h2', '.sp-location-card h3',
+  // Texto interno común dentro de cards (no botones)
+  '.sp-card p', '.sp-card-service p', '.sp-card-offer p',
+  '.sp-about-card p', '.sp-hours-card p', '.sp-location-card p',
+];
+
+function buildCardTextCSS(color) {
+  if (!color) return '';
+  const safe = String(color).trim();
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(safe)) return '';
+  const selectorList = CARD_TEXT_SELECTORS.join(', ');
+  return `${selectorList} { color: ${safe} !important; }`;
+}
+
+function applyCardTextStyle(color) {
+  const css = buildCardTextCSS(color);
+  let styleEl = document.getElementById('safe-card-text-style');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'safe-card-text-style';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = css;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    HELPERS NATIVOS PARA REACT STATE SYNC
@@ -105,12 +142,10 @@ function isBackgroundDark(hex) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function applyInjectedTheme(theme) {
-  // Color pickers en el sidebar: primary, bg, text, btnBg, btnText (en ese orden)
   const colorInputs = document.querySelectorAll(
     '.bp-sidebar input[type="color"], .bp-sidebar-section input[type="color"]',
   );
 
-  // Filtrar solo los 5 originales del sidebar (excluir nuestro cardText inyectado)
   const originalInputs = Array.from(colorInputs).filter(
     (inp) => !inp.closest('#safe-card-text-control'),
   );
@@ -120,7 +155,6 @@ function applyInjectedTheme(theme) {
     if (i < vals.length) setNativeColorValue(inp, vals[i]);
   });
 
-  // Select de tipografía
   const allSelects = document.querySelectorAll(
     '.bp-sidebar select.bp-select, .bp-sidebar-section select.bp-select, .bp-sidebar select, .bp-sidebar-section select',
   );
@@ -131,7 +165,6 @@ function applyInjectedTheme(theme) {
     if (hasFont && theme.font) setNativeSelectValue(sel, theme.font);
   });
 
-  // Sincronizar cardText con el text del tema
   const cardTextInput = document.querySelector('#safe-card-text-input');
   if (cardTextInput) {
     setNativeColorValue(cardTextInput, theme.text);
@@ -139,6 +172,7 @@ function applyInjectedTheme(theme) {
     if (swatch) swatch.style.background = theme.text;
     const hexLabel = document.querySelector('#safe-card-text-hex');
     if (hexLabel) hexLabel.textContent = theme.text;
+    applyCardTextStyle(theme.text);
   }
 }
 
@@ -147,7 +181,6 @@ function applyInjectedTheme(theme) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function findThemesGrid() {
-  // Estrategia 1: .bp-sidebar-section con título que contenga "Temas"
   const sections = document.querySelectorAll('.bp-sidebar-section');
   for (const sec of sections) {
     const title = sec.querySelector('.bp-sidebar-title');
@@ -163,7 +196,6 @@ function findThemesGrid() {
     }
   }
 
-  // Estrategia 2: TreeWalker
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
   while (walker.nextNode()) {
     const el = walker.currentNode;
@@ -200,10 +232,6 @@ function findColorDeLetraSection() {
   }
   return null;
 }
-
-/* ═══════════════════════════════════════════════════════════════════════
-   OBTENER VALOR ACTUAL DEL "COLOR DE LETRA" (texto general)
-   ═══════════════════════════════════════════════════════════════════ */
 
 function getCurrentTextColor() {
   const letraSec = findColorDeLetraSection();
@@ -264,7 +292,6 @@ function createThemeButton(theme, container) {
     e.preventDefault();
     e.stopPropagation();
     applyInjectedTheme(theme);
-    // Feedback visual
     container.querySelectorAll('.safe-extra-theme-btn').forEach((b) => {
       const d = isBackgroundDark(b.dataset.themeBg);
       b.style.borderColor = d ? b.dataset.themePrimary + '55' : '#cbd5e1';
@@ -282,12 +309,10 @@ function createThemeButton(theme, container) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function hideDarkThemes() {
-  // 1) Ocultar botones de temas (oscuros y "Oscuros Suaves") por nombre
   const buttons = document.querySelectorAll(
     '.bp-sidebar-section button, .bp-sidebar button',
   );
   buttons.forEach((btn) => {
-    // No tocar nuestros propios botones inyectados
     if (btn.classList.contains('safe-extra-theme-btn')) return;
     const txt = btn.textContent?.trim();
     if (txt && DARK_THEMES_TO_HIDE.some((n) => txt.includes(n))) {
@@ -295,8 +320,6 @@ function hideDarkThemes() {
     }
   });
 
-  // 2) Ocultar separadores/títulos del bloque "Oscuros Suaves"
-  // Recorremos elementos del sidebar y buscamos los que contengan el texto.
   const sidebarRoot =
     document.querySelector('.bp-sidebar') ||
     document.querySelector('.bp-sidebar-section')?.parentElement;
@@ -304,11 +327,9 @@ function hideDarkThemes() {
 
   const all = sidebarRoot.querySelectorAll('div, span, p, h1, h2, h3, h4, h5, h6');
   all.forEach((el) => {
-    // Excluir nuestros propios contenedores
     if (el.id === 'safe-extra-themes' || el.closest('#safe-extra-themes')) return;
     if (el.id === 'safe-card-text-control' || el.closest('#safe-card-text-control')) return;
 
-    // Solo si el elemento es prácticamente solo texto (no contenedor grande)
     const txt = (el.textContent || '').trim();
     if (!txt) return;
 
@@ -316,12 +337,10 @@ function hideDarkThemes() {
     if (isSeparatorMatch && el.children.length === 0) {
       el.style.display = 'none';
 
-      // Intentar ocultar también el grid hermano inmediato (los botones del bloque)
       let sibling = el.nextElementSibling;
       let safety = 0;
       while (sibling && safety < 3) {
         const sTxt = (sibling.textContent || '').trim();
-        // Si el hermano contiene alguno de los nombres del bloque oscuros suaves, ocultar
         const containsDarkSoft = [
           'Azul Noche Suave',
           'Verde Bosque Claro',
@@ -356,14 +375,12 @@ function injectNewThemes() {
   wrapper.id = 'safe-extra-themes';
   wrapper.style.cssText = 'margin-top: 12px;';
 
-  // ── Separador: Temas Nuevos ──
   const sepLight = document.createElement('div');
   sepLight.style.cssText =
     'text-align:center;font-size:11px;font-weight:700;color:#64748b;padding:10px 0 6px;border-top:1px solid #e2e8f0;letter-spacing:0.5px;text-transform:uppercase;';
   sepLight.textContent = '✨ Temas Nuevos';
   wrapper.appendChild(sepLight);
 
-  // ── Grid de temas claros ──
   const gridLight = document.createElement('div');
   gridLight.style.cssText =
     'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
@@ -377,8 +394,6 @@ function injectNewThemes() {
 
 /* ═══════════════════════════════════════════════════════════════════════
    INYECTAR CONTROL "COLOR TEXTO EN CAJAS" (cardText)
-   Aparece justo después de la sección "Color de Letra".
-   Se sincroniza con el JSON de guardado interceptando el botón Guardar.
    ═══════════════════════════════════════════════════════════════════ */
 
 function injectCardTextControl() {
@@ -389,7 +404,6 @@ function injectCardTextControl() {
 
   const initialColor = getCurrentTextColor();
 
-  // Crear sección que replica el estilo de las secciones existentes
   const section = document.createElement('div');
   section.id = 'safe-card-text-control';
   section.className = 'bp-sidebar-section';
@@ -407,28 +421,31 @@ function injectCardTextControl() {
       <span id="safe-card-text-hex" class="bp-color-hex" style="font-size:13px;color:#64748b;font-weight:600;">${initialColor}</span>
     </div>
     <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.3;">
-      Textos dentro de tarjetas, cards de ofertas y servicios.
+      Títulos y textos dentro de tarjetas, ofertas, servicios, about, horario y ubicación.
     </div>
   `;
 
-  // Insertar justo después de la sección "Color de Letra"
   letraSec.insertAdjacentElement('afterend', section);
 
-  // Listener para actualizar swatch + hex label
   const colorInput = section.querySelector('#safe-card-text-input');
   const swatchEl = section.querySelector('#safe-card-text-swatch');
   const hexLabel = section.querySelector('#safe-card-text-hex');
 
-  colorInput.addEventListener('input', () => {
+  // Aplicar color inicial al preview
+  applyCardTextStyle(initialColor);
+
+  const onChange = () => {
     swatchEl.style.background = colorInput.value;
     hexLabel.textContent = colorInput.value;
-  });
+    applyCardTextStyle(colorInput.value);
+  };
+
+  colorInput.addEventListener('input', onChange);
+  colorInput.addEventListener('change', onChange);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    INTERCEPTAR EL GUARDADO PARA AÑADIR cardText AL JSON
-   Se parchea el fetch/XMLHttpRequest para detectar la actualización de
-   business_primary_color y añadir cardText al JSON antes de enviarlo.
    ═══════════════════════════════════════════════════════════════════ */
 
 let savePatched = false;
@@ -516,6 +533,10 @@ function patchLoadForCardText() {
                       setNativeColorValue(inp, colorObj.cardText);
                       if (swatch) swatch.style.background = colorObj.cardText;
                       if (hex) hex.textContent = colorObj.cardText;
+                      applyCardTextStyle(colorObj.cardText);
+                    } else {
+                      // Igual aplicamos el CSS aunque el control aún no esté
+                      applyCardTextStyle(colorObj.cardText);
                     }
                   };
                   setTimeout(tryRestore, 500);
@@ -543,7 +564,6 @@ function patchLoadForCardText() {
 
 export default function BusinessProfileSafe() {
   useEffect(() => {
-    // Parchear fetch para guardar/restaurar cardText
     patchSaveForCardText();
     patchLoadForCardText();
 
@@ -553,16 +573,13 @@ export default function BusinessProfileSafe() {
       injectCardTextControl();
     };
 
-    // Ejecución inmediata
     run();
 
-    // Reintentos escalonados (el sidebar puede tardar en montar)
     const t1 = setTimeout(run, 400);
     const t2 = setTimeout(run, 1000);
     const t3 = setTimeout(run, 2500);
     const t4 = setTimeout(run, 5000);
 
-    // MutationObserver: re-inyectar si React recrea el DOM
     const observer = new MutationObserver(() => {
       hideDarkThemes();
       if (!document.getElementById('safe-extra-themes')) {
@@ -581,6 +598,9 @@ export default function BusinessProfileSafe() {
       clearTimeout(t3);
       clearTimeout(t4);
       observer.disconnect();
+      // Limpiar style inyectado al desmontar
+      const styleEl = document.getElementById('safe-card-text-style');
+      if (styleEl) styleEl.remove();
     };
   }, []);
 
