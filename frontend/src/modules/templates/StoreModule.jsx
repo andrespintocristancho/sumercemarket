@@ -66,7 +66,8 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
       text: '#0f172a',
       btnBg: '#25d366',
       btnText: '#ffffff',
-      font: 'Plus Jakarta Sans'
+      font: 'Plus Jakarta Sans',
+      cardText: '' // vacío = heredar de text
     };
 
     if (seller.business_primary_color) {
@@ -106,6 +107,9 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
     return false;
   })();
 
+  // cardText: si el vendedor lo definió se usa; si no, se hereda de text
+  const cardTextColor = stylesConfig.cardText || stylesConfig.text;
+
   const accentStyle = {
     '--sm-accent': stylesConfig.primary,
     '--sm-bg-1': stylesConfig.bg,
@@ -119,6 +123,8 @@ export default function StoreModule({ seller = {}, offers = [], primaryColor }) 
     '--sm-on-surface': stylesConfig.text,
     '--sm-on-surface-variant': `color-mix(in srgb, ${stylesConfig.text} 65%, ${stylesConfig.bg})`,
     '--sm-midnight': isDarkBg ? stylesConfig.text : '#0f172a',
+    '--sm-card-text': cardTextColor,
+    '--sm-card-text-soft': `color-mix(in srgb, ${cardTextColor} 70%, ${stylesConfig.bg})`,
     fontFamily: `'${stylesConfig.font}', 'Plus Jakarta Sans', sans-serif`
   };
 
