@@ -68,6 +68,11 @@ export async function listProductsByUser(userId) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
+  if (error) {
+    // Exponer el error real en consola para diagnostico (RLS, columna, red, etc).
+    console.error("[products] listProductsByUser error:", error);
+  }
+
   return { data: data || [], error };
 }
 
@@ -91,6 +96,10 @@ export async function listActiveProductsByUser(userId) {
     .eq("user_id", userId)
     .eq("status", "active")
     .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[products] listActiveProductsByUser error:", error);
+  }
 
   return { data: data || [], error };
 }
@@ -134,6 +143,10 @@ export async function createProduct(product) {
     .insert(payload)
     .select()
     .single();
+
+  if (error) {
+    console.error("[products] createProduct error:", error);
+  }
 
   return { data: data || null, error };
 }
@@ -183,6 +196,10 @@ export async function updateProduct(id, userId, updates) {
     .select()
     .single();
 
+  if (error) {
+    console.error("[products] updateProduct error:", error);
+  }
+
   return { data: data || null, error };
 }
 
@@ -204,6 +221,10 @@ export async function deleteProduct(id, userId) {
     .eq("user_id", userId)
     .select()
     .single();
+
+  if (error) {
+    console.error("[products] deleteProduct error:", error);
+  }
 
   return { data: data || null, error };
 }
@@ -253,6 +274,7 @@ export async function uploadProductImage(userId, productId, file) {
     });
 
   if (uploadError) {
+    console.error("[products] uploadProductImage upload error:", uploadError);
     return { data: null, error: uploadError };
   }
 
@@ -280,6 +302,7 @@ export async function uploadProductImage(userId, productId, file) {
     .single();
 
   if (insertError) {
+    console.error("[products] uploadProductImage insert error:", insertError);
     return { data: null, error: insertError };
   }
 
