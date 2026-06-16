@@ -27,6 +27,18 @@ function formatCOP(value) {
   return `$${Number(value).toLocaleString("es-CO")}`;
 }
 
+// ── Construir enlace de WhatsApp para un producto ────────────
+function buildWhatsappUrl(whatsapp, productName) {
+  if (!whatsapp) return null;
+  // Dejar solo dígitos en el número (wa.me no admite símbolos)
+  const phone = String(whatsapp).replace(/\D/g, "");
+  if (!phone) return null;
+  const message = `Hola, estoy interesado en este producto del catálogo: ${
+    productName || "Sin nombre"
+  }`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
 // ── Placeholder cuando no hay imagen ─────────────────────────
 const PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect fill='%23f0f0f0' width='300' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23bbb' font-size='14'%3ESin imagen%3C/text%3E%3C/svg%3E";
@@ -36,6 +48,7 @@ const PLACEHOLDER =
 // ============================================================
 export default function SellerProductsInjector({ slug }) {
   const [products, setProducts] = useState([]);
+  const [whatsapp, setWhatsapp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [portalTarget, setPortalTarget] = useState(null);
   const containerRef = useRef(null);
@@ -51,10 +64,10 @@ export default function SellerProductsInjector({ slug }) {
 
     (async () => {
       try {
-        // Paso A: obtener perfil por business_slug
+        // Paso A: obtener perfil por business_slug (incluye whatsapp)
         const { data: profile, error: profileErr } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, business_whatsapp")
           .eq("business_slug", slug)
           .maybeSingle();
 
@@ -62,6 +75,9 @@ export default function SellerProductsInjector({ slug }) {
           if (!cancelled) setLoading(false);
           return;
         }
+
+        // Guardar el WhatsApp del vendedor junto con el perfil
+        if (!cancelled) setWhatsapp(profile.business_whatsapp || null);
 
         // Paso B: productos activos de ese vendedor
         const { data: prods, error: prodsErr } = await supabase
@@ -161,7 +177,9 @@ export default function SellerProductsInjector({ slug }) {
             gap: "1.25rem",
           }}
         >
-          {products.map((prod) => (
+          {products.map((prod) => {
+            const waUrl = buildWhatsappUrl(whatsapp, prod.name);
+            return (
             <div
               key={prod.id}
               className="sp-card"
@@ -198,7 +216,14 @@ export default function SellerProductsInjector({ slug }) {
               </div>
 
               {/* Info */}
-              <div style={{ padding: "0.85rem 1rem" }}>
+              <div
+                style={{
+                  padding: "0.85rem 1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                }}
+              >
                 {prod.category && (
                   <span
                     style={{
@@ -236,9 +261,30 @@ export default function SellerProductsInjector({ slug }) {
                     {formatCOP(prod.price)}
                   </span>
                 )}
+
+                {/* Botón Consultar por WhatsApp (solo si hay número) */}
+                {waUrl && (
+                  <a
+                    className="sp-btn sp-btn-primary"
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "0.55rem",
+                      paddingBottom: "0.55rem",
+                      textAlign: "center",
+                      textDecoration: "none",
+                      display: "block",
+                    }}
+                  >
+                    Consultar por WhatsApp
+                  </a>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
