@@ -69,6 +69,7 @@ export default function Navbar() {
             <>
               <NavLink to="/publish" style={navStyle} onClick={close}>Publicar</NavLink>
               <NavLink to="/my-offers" style={navStyle} onClick={close}>Mis ofertas</NavLink>
+              <NavLink to="/mis-productos" style={navStyle} onClick={close}>Mis productos</NavLink>
               {/* Enlace al perfil de negocio: visible para cualquier usuario logueado. */}
               <NavLink to="/business-profile" style={navStyle} onClick={close}>Mi negocio</NavLink>
 
