@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import SellerPageOriginal from './SellerPage.jsx';
+import SellerProductsInjector from '../components/SellerProductsInjector';
 import { useSellerSEO } from '../hooks/useSellerSEO';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
@@ -22,6 +23,8 @@ import { supabase } from '../lib/supabaseClient';
  * 3. Pasa el perfil al hook useSellerSEO para meta tags.
  * 4. Parsea business_primary_color y aplica cardText vía <style>.
  * 5. Renderiza SellerPage original sin cambios.
+ * 6. Monta SellerProductsInjector que inyecta catálogo de productos
+ *    debajo de "Ofertas destacadas" vía createPortal.
  */
 
 /* Selectores compartidos con BusinessProfileSafe.jsx */
@@ -132,6 +135,11 @@ export default function SellerPageWithSEO() {
   // Inyectar SEO tags (el hook internamente ignora si profile es null)
   useSellerSEO(seoProfile, slug);
 
-  // Renderizar el SellerPage original sin cambios
-  return <SellerPageOriginal />;
+  // Renderizar el SellerPage original + inyector de productos (vía portal)
+  return (
+    <>
+      <SellerPageOriginal />
+      <SellerProductsInjector slug={slug} />
+    </>
+  );
 }
