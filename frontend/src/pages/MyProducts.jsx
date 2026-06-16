@@ -237,8 +237,48 @@ const EMPTY_FORM = {
   status: "active",
 };
 
+// ------------------------------------------------------------
+// Helper: resolver el sellerId correcto.
+//
+// En algunos esquemas products.user_id apunta a profiles.id
+// (no a auth.users.id). Por eso intentamos primero localizar
+// el profile del usuario autenticado y, si existe, usamos su
+// id. Si no, caemos al auth.user.id (comportamiento original).
+//
+// Esto evita el error "No se pudieron cargar los productos"
+// causado por un desalineamiento entre profiles.id y auth.uid().
+// ------------------------------------------------------------
+async function resolveSellerId(authUserId) {
+  if (!authUserId) return null;
+  try {
+    // Intento 1: profile cuyo campo user_id == auth.uid().
+    const r1 = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", authUserId)
+      .maybeSingle();
+
+    if (!r1.error && r1.data?.id) return r1.data.id;
+
+    // Intento 2: profile cuyo id == auth.uid() (esquemas donde
+    // profiles.id es el mismo uuid de auth.users.id).
+    const r2 = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", authUserId)
+      .maybeSingle();
+
+    if (!r2.error && r2.data?.id) return r2.data.id;
+  } catch (e) {
+    console.error("[MyProducts] resolveSellerId exception:", e);
+  }
+  // Fallback: usar el auth.user.id directamente.
+  return authUserId;
+}
+
 export default function MyProducts() {
   const [user, setUser]         = useState(null);
+  const [sellerId, setSellerId] = useState(null);
   const [loadingUser, setLU]    = useState(true);
   const [products, setProducts] = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -252,7 +292,7 @@ export default function MyProducts() {
   const isEditing = useMemo(() => Boolean(editingId), [editingId]);
 
   // --------------------------------------------------------
-  // Cargar usuario autenticado
+  // Cargar usuario autenticado + sellerId (profile.id o auth.id)
   // --------------------------------------------------------
   useEffect(() => {
     let mounted = true;
@@ -260,10 +300,16 @@ export default function MyProducts() {
       const { data, error } = await supabase.auth.getUser();
       if (!mounted) return;
       if (error || !data?.user) {
+        if (error) console.error("[MyProducts] auth.getUser error:", error);
         setUser(null);
-      } else {
-        setUser(data.user);
+        setSellerId(null);
+        setLU(false);
+        return;
       }
+      setUser(data.user);
+      const sid = await resolveSellerId(data.user.id);
+      if (!mounted) return;
+      setSellerId(sid);
       setLU(false);
     })();
     return () => { mounted = false; };
@@ -273,11 +319,18 @@ export default function MyProducts() {
   // Cargar productos del vendedor
   // --------------------------------------------------------
   async function reload() {
-    if (!user?.id) return;
+    const sid = sellerId || user?.id;
+    if (!sid) return;
     setLoading(true);
-    const { data, error } = await listProductsByUser(user.id);
+    const { data, error } = await listProductsByUser(sid);
     if (error) {
-      setMsg({ type: "err", text: "No se pudieron cargar los productos." });
+      console.error("[MyProducts] reload error:", error);
+      setMsg({
+        type: "err",
+        text:
+          "No se pudieron cargar los productos." +
+          (error?.message ? ` (${error.message})` : ""),
+      });
     } else {
       setProducts(data);
     }
@@ -285,9 +338,9 @@ export default function MyProducts() {
   }
 
   useEffect(() => {
-    if (user?.id) reload();
+    if (sellerId || user?.id) reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [sellerId, user]);
 
   // --------------------------------------------------------
   // Helpers UI
@@ -324,7 +377,8 @@ export default function MyProducts() {
   // --------------------------------------------------------
   async function onSubmit(e) {
     e.preventDefault();
-    if (!user?.id) return;
+    const sid = sellerId || user?.id;
+    if (!sid) return;
 
     const payload = {
       ...form,
@@ -336,20 +390,32 @@ export default function MyProducts() {
     setMsg(null);
 
     if (isEditing) {
-      const { error } = await updateProduct(editingId, user.id, payload);
+      const { error } = await updateProduct(editingId, sid, payload);
       setSaving(false);
       if (error) {
-        setMsg({ type: "err", text: "No se pudo actualizar el producto." });
+        console.error("[MyProducts] updateProduct error:", error);
+        setMsg({
+          type: "err",
+          text:
+            "No se pudo actualizar el producto." +
+            (error?.message ? ` (${error.message})` : ""),
+        });
         return;
       }
       setMsg({ type: "ok", text: "Producto actualizado." });
       resetForm();
       reload();
     } else {
-      const { error } = await createProduct({ ...payload, user_id: user.id });
+      const { error } = await createProduct({ ...payload, user_id: sid });
       setSaving(false);
       if (error) {
-        setMsg({ type: "err", text: "No se pudo crear el producto." });
+        console.error("[MyProducts] createProduct error:", error);
+        setMsg({
+          type: "err",
+          text:
+            "No se pudo crear el producto." +
+            (error?.message ? ` (${error.message})` : ""),
+        });
         return;
       }
       setMsg({ type: "ok", text: "Producto creado." });
@@ -362,13 +428,20 @@ export default function MyProducts() {
   // Eliminar
   // --------------------------------------------------------
   async function onDelete(p) {
-    if (!user?.id) return;
+    const sid = sellerId || user?.id;
+    if (!sid) return;
     const ok = window.confirm(`Eliminar "${p.name}"? Esta accion no se puede deshacer.`);
     if (!ok) return;
 
-    const { error } = await deleteProduct(p.id, user.id);
+    const { error } = await deleteProduct(p.id, sid);
     if (error) {
-      setMsg({ type: "err", text: "No se pudo eliminar el producto." });
+      console.error("[MyProducts] deleteProduct error:", error);
+      setMsg({
+        type: "err",
+        text:
+          "No se pudo eliminar el producto." +
+          (error?.message ? ` (${error.message})` : ""),
+      });
       return;
     }
     setMsg({ type: "ok", text: "Producto eliminado." });
@@ -379,10 +452,17 @@ export default function MyProducts() {
   // Cambiar status
   // --------------------------------------------------------
   async function onStatus(p, newStatus) {
-    if (!user?.id) return;
-    const { error } = await updateProduct(p.id, user.id, { status: newStatus });
+    const sid = sellerId || user?.id;
+    if (!sid) return;
+    const { error } = await updateProduct(p.id, sid, { status: newStatus });
     if (error) {
-      setMsg({ type: "err", text: "No se pudo cambiar el estado." });
+      console.error("[MyProducts] onStatus error:", error);
+      setMsg({
+        type: "err",
+        text:
+          "No se pudo cambiar el estado." +
+          (error?.message ? ` (${error.message})` : ""),
+      });
       return;
     }
     setMsg({ type: "ok", text: `Estado cambiado a ${newStatus}.` });
@@ -393,13 +473,20 @@ export default function MyProducts() {
   // Subir imagen principal
   // --------------------------------------------------------
   async function onUpload(p, file) {
-    if (!user?.id || !file) return;
+    const sid = sellerId || user?.id;
+    if (!sid || !file) return;
     setUploadingId(p.id);
     setMsg(null);
-    const { error } = await uploadProductImage(user.id, p.id, file);
+    const { error } = await uploadProductImage(sid, p.id, file);
     setUploadingId(null);
     if (error) {
-      setMsg({ type: "err", text: "No se pudo subir la imagen." });
+      console.error("[MyProducts] uploadProductImage error:", error);
+      setMsg({
+        type: "err",
+        text:
+          "No se pudo subir la imagen." +
+          (error?.message ? ` (${error.message})` : ""),
+      });
       return;
     }
     setMsg({ type: "ok", text: "Imagen subida correctamente." });
