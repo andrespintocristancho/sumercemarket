@@ -238,7 +238,7 @@ export async function deleteProduct(id, userId) {
  * Sube una imagen al bucket "product-images" y la asocia al
  * producto indicado.
  *
- * Estructura del path: {userId}/{productId}/{timestamp}-{filename}
+ * Estructura del path: {authUid}/{productId}/{timestamp}-{filename}
  * Asi cada vendedor tiene su carpeta y se cumple la politica de
  * Storage que restringe escritura a la carpeta auth.uid().
  *
@@ -259,10 +259,17 @@ export async function uploadProductImage(userId, productId, file) {
   if (!productId) return { data: null, error: new Error("productId es requerido") };
   if (!file)      return { data: null, error: new Error("file es requerido") };
 
+  // El path del Storage DEBE empezar por auth.uid() para cumplir la
+  // politica RLS del bucket: (storage.foldername(name))[1] = auth.uid().
+  // Derivamos el id desde la sesion en vez de confiar en el argumento.
+  // En este proyecto auth.uid() == profiles.id == products.user_id.
+  const { data: authData } = await supabase.auth.getUser();
+  const authUid = authData?.user?.id || userId;
+
   const ext = getExtension(file.name) || "jpg";
   const baseName = sanitizeFileName(file.name.replace(/\.[^.]+$/, "")) || "img";
   const fileName = `${Date.now()}-${baseName}.${ext}`;
-  const path = `${userId}/${productId}/${fileName}`;
+  const path = `${authUid}/${productId}/${fileName}`;
 
   // 1) Subir al bucket
   const { error: uploadError } = await supabase.storage
