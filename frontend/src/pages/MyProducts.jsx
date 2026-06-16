@@ -176,6 +176,17 @@ const STYLES = `
 }
 .mp-item-body { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .mp-item-name { margin: 0; font-size: 15px; font-weight: 700; }
+.mp-item-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .mp-item-meta { font-size: 12px; color: #64748b; }
 .mp-price { font-size: 16px; font-weight: 800; color: #0f172a; }
 .mp-badge {
@@ -702,6 +713,10 @@ export default function MyProducts() {
 
                 <div className="mp-item-body">
                   <h3 className="mp-item-name">{p.name}</h3>
+
+                  {p.description && (
+                    <p className="mp-item-desc">{p.description}</p>
+                  )}
 
                   <div className="mp-item-meta">
                     <span
