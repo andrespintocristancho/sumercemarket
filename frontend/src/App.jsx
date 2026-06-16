@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Publish from './pages/Publish.jsx';
 import MyOffers from './pages/MyOffers.jsx';
+import MyProducts from './pages/MyProducts.jsx';
 import Admin from './pages/Admin.jsx';
 import OfferDetail from './pages/OfferDetail.jsx';
 import BusinessProfileSafe from './pages/BusinessProfileSafe.jsx';
@@ -51,6 +52,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MyOffers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mis-productos"
+              element={
+                <ProtectedRoute>
+                  <MyProducts />
                 </ProtectedRoute>
               }
             />
