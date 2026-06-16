@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { ensureProfileForUser } from '../lib/ensureProfile.js';
 import {
   DEPARTMENTS,
   citiesOf,
@@ -101,6 +102,12 @@ export default function Publish() {
     const uploadedPaths = []; // para rollback de Storage si algo falla
 
     try {
+      // ── Garantizar que existe row en profiles ──────────────
+      // Si el perfil no se creó durante el registro (email con
+      // confirmación, campo incorrecto, RLS bloqueó, etc.),
+      // lo creamos ahora con datos mínimos seguros.
+      await ensureProfileForUser(user, profile);
+
       // 1) Insert oferta (sin image_url todavía; lo seteamos al final
       //    con la URL pública de la primera imagen).
       const payload = {
@@ -400,6 +407,9 @@ function mapError(msg) {
   const m = (msg || '').toLowerCase();
   if (m.includes('row-level security') || m.includes('rls')) {
     return 'No tienes permiso para realizar esta acción.';
+  }
+  if (m.includes('foreign key') || m.includes('fkey') || m.includes('user_id_fkey')) {
+    return 'Tu perfil de usuario no está completo. Intenta cerrar sesión e iniciar de nuevo.';
   }
   if (m.includes('bucket') && m.includes('not found')) {
     return 'El bucket "offer-images" no existe en Supabase Storage.';
