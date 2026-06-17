@@ -9,3 +9,26 @@
 #ofertas {
   display: none !important;
 }
+
+/* ==========================================================================
+   17. OVERRIDE SEGURO IMAGENES CATALOGO DEL NEGOCIO
+   Mejora la visualizacion de imagenes de productos sin tocar JSX.
+   ========================================================================== */
+#catalogo-negocio .spi-card-img-wrap,
+#catalogo-negocio .sp-offer-img-wrap {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+#catalogo-negocio .spi-card-img-wrap img,
+#catalogo-negocio .sp-offer-img-wrap img,
+#catalogo-negocio img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #f8fafc;
+}
