@@ -1,0 +1,58 @@
+/* ==========================================================================
+   SELLER HERO FIX
+   Override seguro para el banner/hero publico de /seller/:slug
+   Aumenta la altura del banner y mejora el encuadre de la imagen
+   sin tocar JSX ni logica.
+   ========================================================================== */
+
+/* Wrapper y contenedores del hero/banner */
+.sp-header-wrapper,
+.sp-banner-cover,
+.sp-hero-cover {
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* Imagen del hero como <img> */
+.sp-banner-cover img,
+.sp-hero-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Imagen del hero como background */
+.sp-banner-cover,
+.sp-hero-cover {
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Overlay del hero: cubre todo el alto sin deformar */
+.sp-hero-overlay {
+  border-radius: 16px;
+  min-height: 520px;
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .sp-header-wrapper,
+  .sp-banner-cover,
+  .sp-hero-cover,
+  .sp-hero-overlay {
+    min-height: 420px;
+  }
+}
+
+/* Movil */
+@media (max-width: 640px) {
+  .sp-header-wrapper,
+  .sp-banner-cover,
+  .sp-hero-cover,
+  .sp-hero-overlay {
+    min-height: 340px;
+  }
+}

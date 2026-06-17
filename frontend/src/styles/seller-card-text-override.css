@@ -109,3 +109,52 @@
 .seller-page-wrapper .benefit-card p {
   color: var(--sm-card-text-soft, var(--sm-text-soft, inherit));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HERO / BANNER FIX (aditivo)
+   Aumenta la altura del banner publico de /seller/:slug y mejora el
+   encuadre para que la imagen no se corte tanto. Sin tocar JSX ni logica.
+   ═══════════════════════════════════════════════════════════════════════ */
+.sp-header-wrapper,
+.sp-banner-cover,
+.sp-hero-cover,
+.sp-hero-overlay {
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.sp-banner-cover,
+.sp-hero-cover {
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.sp-banner-cover img,
+.sp-hero-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .sp-header-wrapper,
+  .sp-banner-cover,
+  .sp-hero-cover,
+  .sp-hero-overlay {
+    min-height: 420px;
+  }
+}
+
+/* Movil */
+@media (max-width: 640px) {
+  .sp-header-wrapper,
+  .sp-banner-cover,
+  .sp-hero-cover,
+  .sp-hero-overlay {
+    min-height: 340px;
+  }
+}
