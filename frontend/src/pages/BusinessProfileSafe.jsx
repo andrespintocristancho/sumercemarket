@@ -11,7 +11,58 @@ import BusinessProfile from './BusinessProfile';
  *
  * Además inyecta un <style id="safe-card-text-style"> con reglas CSS que
  * aplican el color "cardText" SOLO a títulos/textos dentro de cards/cajas.
+ *
+ * También normaliza business_template antes de guardar para evitar
+ * el error profiles_business_template_check.
  */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NORMALIZACIÓN DE business_template
+   Convierte nombres visuales a valores válidos para la base de datos.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const TEMPLATE_VISUAL_TO_DB = {
+  'electrodomésticos': 'electrodomesticos',
+  'electrodomesticos': 'electrodomesticos',
+  'tecnología': 'tecnologia',
+  'tecnologia': 'tecnologia',
+  'calzado': 'calzado',
+  'ropa y accesorios': 'ropa',
+  'ropa': 'ropa',
+  'motos': 'motos',
+  'carros': 'carros',
+  'veterinarias': 'veterinarias',
+  'supermercado': 'supermercado',
+  'ferreterías': 'ferreterias',
+  'ferreterias': 'ferreterias',
+  'panaderías': 'panaderias',
+  'panaderias': 'panaderias',
+  'tienda': 'store',
+  'store': 'store',
+  'moda': 'fashion',
+  'fashion': 'fashion',
+  'servicios': 'services',
+  'services': 'services',
+  'vehículos': 'vehicles',
+  'vehiculos': 'vehicles',
+  'vehicles': 'vehicles',
+};
+
+const VALID_TEMPLATE_VALUES = new Set([
+  'store', 'fashion', 'services', 'vehicles',
+  'electrodomesticos', 'tecnologia', 'calzado', 'ropa',
+  'motos', 'carros', 'veterinarias', 'supermercado',
+  'ferreterias', 'panaderias',
+]);
+
+function normalizeBusinessTemplate(value) {
+  if (!value || typeof value !== 'string') return 'store';
+  const clean = value.trim().toLowerCase();
+  if (VALID_TEMPLATE_VALUES.has(clean)) return clean;
+  const mapped = TEMPLATE_VISUAL_TO_DB[clean];
+  if (mapped) return mapped;
+  return 'store';
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    TEMAS NUEVOS (SOLO CLAROS/PROFESIONALES)
@@ -445,6 +496,40 @@ function injectCardTextControl() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   INTERCEPTAR EL GUARDADO PARA NORMALIZAR business_template
+   ═══════════════════════════════════════════════════════════════════ */
+
+let templatePatched = false;
+
+function patchSaveForTemplateNormalization() {
+  if (templatePatched) return;
+  templatePatched = true;
+
+  const originalFetch = window.fetch;
+  window.fetch = function (...args) {
+    try {
+      const [, options] = args;
+      if (
+        options &&
+        options.method &&
+        options.method.toUpperCase() === 'PATCH' &&
+        typeof options.body === 'string' &&
+        options.body.includes('business_template')
+      ) {
+        const body = JSON.parse(options.body);
+        if (body.business_template !== undefined) {
+          body.business_template = normalizeBusinessTemplate(body.business_template);
+          args[1] = { ...options, body: JSON.stringify(body) };
+        }
+      }
+    } catch {
+      // No interrumpir el guardado si falla el parseo
+    }
+    return originalFetch.apply(this, args);
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    INTERCEPTAR EL GUARDADO PARA AÑADIR cardText AL JSON
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -564,6 +649,7 @@ function patchLoadForCardText() {
 
 export default function BusinessProfileSafe() {
   useEffect(() => {
+    patchSaveForTemplateNormalization();
     patchSaveForCardText();
     patchLoadForCardText();
 
