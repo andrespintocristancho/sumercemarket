@@ -23,6 +23,7 @@ import {
   deleteProduct,
   uploadProductImage,
 } from "../lib/products";
+import { ensureProfileForUser } from "../lib/ensureProfile";
 
 // ------------------------------------------------------------
 // Estilos locales (scoped por prefijo mp-*).
@@ -417,6 +418,9 @@ export default function MyProducts() {
       resetForm();
       reload();
     } else {
+      // Garantizar que el perfil existe antes de insertar en products
+      await ensureProfileForUser(user, null);
+
       const { error } = await createProduct({ ...payload, user_id: sid });
       setSaving(false);
       if (error) {
