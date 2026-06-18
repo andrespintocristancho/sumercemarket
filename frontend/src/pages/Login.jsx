@@ -39,7 +39,7 @@ export default function Login() {
     <div style={styles.wrap}>
       <div className="card" style={styles.card}>
         <h1 style={styles.title}>Iniciar sesión</h1>
-        <p style={styles.subtitle}>Bienvenido de vuelta a SumerceMarket.</p>
+        <p style={styles.subtitle}>Bienvenido de vuelta a SumerceCompra.</p>
 
         <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <label style={styles.label}>

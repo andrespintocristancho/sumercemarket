@@ -96,7 +96,7 @@ export default function Register() {
     <div style={styles.wrap}>
       <div className="card" style={styles.card}>
         <h1 style={styles.title}>Crear cuenta</h1>
-        <p style={styles.subtitle}>Únete a SumerceMarket y empieza a publicar tus ofertas.</p>
+        <p style={styles.subtitle}>Únete a SumerceCompra y empieza a publicar tus ofertas.</p>
 
         <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <label style={styles.label}>
