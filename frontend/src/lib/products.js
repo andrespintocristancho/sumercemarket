@@ -15,6 +15,7 @@
 // ============================================================
 
 import { supabase } from "./supabaseClient";
+import { compressImage } from "./imageCompressor";
 
 const BUCKET = "product-images";
 
@@ -243,6 +244,7 @@ export async function deleteProduct(id, userId) {
  * Storage que restringe escritura a la carpeta auth.uid().
  *
  * Pasos:
+ *   0. Optimiza/comprime la imagen en el navegador (fallback seguro).
  *   1. Sube el archivo al bucket.
  *   2. Obtiene la URL publica.
  *   3. Inserta un registro en product_images.
@@ -266,18 +268,22 @@ export async function uploadProductImage(userId, productId, file) {
   const { data: authData } = await supabase.auth.getUser();
   const authUid = authData?.user?.id || userId;
 
-  const ext = getExtension(file.name) || "jpg";
+  // 0) Optimizar la imagen antes de subir. Si no es imagen, es pequena
+  //    o falla la compresion, compressImage devuelve el archivo original.
+  const optimizedFile = await compressImage(file);
+
   const baseName = sanitizeFileName(file.name.replace(/\.[^.]+$/, "")) || "img";
+  const ext = getExtension(optimizedFile.name) || getExtension(file.name) || "jpg";
   const fileName = `${Date.now()}-${baseName}.${ext}`;
   const path = `${authUid}/${productId}/${fileName}`;
 
   // 1) Subir al bucket
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(path, file, {
+    .upload(path, optimizedFile, {
       cacheControl: "3600",
       upsert: false,
-      contentType: file.type || undefined,
+      contentType: optimizedFile.type || file.type || undefined,
     });
 
   if (uploadError) {
