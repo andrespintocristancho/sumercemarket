@@ -162,7 +162,7 @@ export default function OfferDetail() {
       seller?.business_name ||
       seller?.full_name ||
       offer?.contact_name ||
-      'Vendedor SumerceMarket'
+      'Vendedor SumerceCompra'
     );
   }, [seller, offer]);
 
@@ -187,7 +187,7 @@ export default function OfferDetail() {
     setContacting(true);
 
     const message =
-      `¡Hola ${sellerName}! Te escribo desde SumerceMarket 🇨🇴.\n\n` +
+      `¡Hola ${sellerName}! Te escribo desde SumerceCompra 🇨🇴.\n\n` +
       `Me interesa tu publicación:\n` +
       `• ${offer.title}\n` +
       `• Precio: ${formatPrice(offer.price)}\n\n` +
@@ -359,7 +359,7 @@ export default function OfferDetail() {
             {sellerPhone && (
               <p className="text-muted" style={{ margin: '4px 0 0 0' }}>📞 {formatPhone(sellerPhone)}</p>
             )}
-            <p className="text-muted" style={{ margin: '4px 0 0 0' }}>Miembro de SumerceMarket</p>
+            <p className="text-muted" style={{ margin: '4px 0 0 0' }}>Miembro de SumerceCompra</p>
             {seller?.business_slug && (
               <Link
                 to={`/seller/${seller.business_slug}`}
@@ -404,7 +404,7 @@ export default function OfferDetail() {
             className="text-muted text-center mt-2"
             style={{ fontSize: '0.8rem' }}
           >
-            ⚠️ Acuerda el pago en persona. SumerceMarket no procesa transacciones.
+            ⚠️ Acuerda el pago en persona. SumerceCompra no procesa transacciones.
           </p>
         </div>
       </div>
