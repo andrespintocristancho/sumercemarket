@@ -17,7 +17,7 @@ export default function OfferCard({
 
   const mainImage = pickMainImage(offer);
   const phone = offer.contact_phone || '';
-  const waMessage = `Hola, vi tu oferta "${offer.title}" en SumerceMarket. ¿Sigue disponible?`;
+  const waMessage = `Hola, vi tu oferta "${offer.title}" en SumerceCompra. ¿Sigue disponible?`;
   const waLink = phone && offer.status === 'active'
     ? buildWhatsAppLink(phone, waMessage)
     : null;
