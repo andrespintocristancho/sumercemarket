@@ -49,7 +49,7 @@ export default function Navbar() {
       <div style={styles.bar}>
         <Link to="/" style={styles.brand} onClick={close}>
           <span style={styles.brandIcon} aria-hidden>🛍️</span>
-          <span>SumerceMarket</span>
+          <span>SumerceCompra</span>
         </Link>
 
         <button
