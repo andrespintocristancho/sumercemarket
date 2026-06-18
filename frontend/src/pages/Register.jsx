@@ -230,15 +230,33 @@ export default function Register() {
 
 function mapError(msg) {
   const m = msg.toLowerCase();
+
+  // Correo ya registrado
   if (m.includes('already registered') || m.includes('user already')) {
-    return 'Este correo ya está registrado.';
+    return 'Este correo ya está registrado. Intenta iniciar sesión o usa otro correo.';
   }
+
+  // Rate limit / demasiados intentos
+  if (m.includes('rate limit') || m.includes('too many requests') || m.includes('request limit')) {
+    return 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
+  }
+
+  // Signup deshabilitado
+  if (m.includes('signups not allowed') || m.includes('signup is disabled')) {
+    return 'El registro no está disponible en este momento.';
+  }
+
+  // Contraseña no cumple requisitos
   if (m.includes('password')) {
     return 'La contraseña no cumple los requisitos.';
   }
-  if (m.includes('email')) {
-    return 'El correo no es válido.';
+
+  // Correo inválido real (solo si Supabase dice explícitamente que el formato es inválido)
+  if (m.includes('invalid') && m.includes('email')) {
+    return 'El formato del correo no es válido.';
   }
+
+  // Cualquier otro error: mostrar mensaje original de Supabase
   return msg || 'No fue posible crear la cuenta.';
 }
 
