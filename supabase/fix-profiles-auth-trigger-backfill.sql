@@ -1,29 +1,20 @@
 -- =====================================================================
 -- fix-profiles-auth-trigger-backfill.sql
--- ---------------------------------------------------------------------
 -- Objetivo:
---   1) Garantizar que cada usuario de Supabase Auth (auth.users) tenga
---      una fila correspondiente en public.profiles.
---   2) Crear automaticamente esa fila para los NUEVOS usuarios mediante
---      un trigger AFTER INSERT sobre auth.users.
---   3) Hacer backfill de los usuarios EXISTENTES que aun no tienen perfil.
+--   1) Garantizar que cada usuario de auth.users tenga fila en
+--      public.profiles (backfill).
+--   2) Crear automáticamente la fila en public.profiles cuando se
+--      registre un nuevo usuario en auth.users (trigger).
 --
--- Caracteristicas de seguridad:
---   - Idempotente: se puede ejecutar varias veces sin efectos adversos.
---   - NO borra datos.
---   - NO sobrescribe perfiles existentes (ON CONFLICT (id) DO NOTHING).
---   - NO cambia roles existentes (no toca admins ni otros roles).
---   - NO modifica RLS.
---
--- NOTA: Este script NO se ejecuta automaticamente. Aplicar manualmente
---       en Supabase (SQL Editor) cuando se desee.
+-- Caracteristicas:
+--   - Idempotente: se puede ejecutar varias veces sin efectos no deseados.
+--   - Seguro: NO borra datos, NO sobrescribe perfiles ni roles existentes.
+--   - No toca RLS, no modifica schema.sql, no afecta frontend.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 1) Funcion: public.handle_new_user()
---    Inserta el perfil del nuevo usuario. SECURITY DEFINER para poder
---    escribir en public.profiles desde el contexto del trigger en
---    auth.users. ON CONFLICT (id) DO NOTHING evita sobrescrituras.
+-- 1) Funcion: crea la fila en public.profiles para un nuevo usuario.
+--    CREATE OR REPLACE => idempotente.
 -- ---------------------------------------------------------------------
 create or replace function public.handle_new_user()
 returns trigger
@@ -48,8 +39,8 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- 2) Trigger: on_auth_user_created
---    Se elimina primero si ya existe (idempotencia) y luego se recrea.
+-- 2) Trigger: ejecuta la funcion despues de insertar en auth.users.
+--    Se elimina primero si existe para evitar duplicados (idempotente).
 -- ---------------------------------------------------------------------
 drop trigger if exists on_auth_user_created on auth.users;
 
@@ -59,9 +50,9 @@ create trigger on_auth_user_created
   execute function public.handle_new_user();
 
 -- ---------------------------------------------------------------------
--- 3) Backfill: crear perfiles faltantes de usuarios ya existentes.
---    ON CONFLICT (id) DO NOTHING garantiza que NO se sobrescriba ningun
---    perfil existente (incluidos admins). Solo se crean los que faltan.
+-- 3) Backfill: crea profiles faltantes para usuarios ya existentes.
+--    ON CONFLICT (id) DO NOTHING => no sobrescribe perfiles ni roles
+--    existentes (no cambia admins ni datos previos).
 -- ---------------------------------------------------------------------
 insert into public.profiles (id, full_name, phone, department, city, role)
 select
@@ -73,3 +64,7 @@ select
   'user'
 from auth.users u
 on conflict (id) do nothing;
+
+-- =====================================================================
+-- Fin del script.
+-- =====================================================================
