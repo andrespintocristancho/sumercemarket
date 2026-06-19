@@ -26,6 +26,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatPhone } from '../data/colombia.js';
+import { filterByAdminScope } from '../lib/adminScope';
 
 const COMMISSION_RATES = [0.05, 0.06];
 
@@ -182,7 +183,10 @@ export default function Admin() {
   }
 
   // ---------- Filtros aplicados ----------
-  const filteredOffers = offers.filter((o) => {
+  const scopedOffers = filterByAdminScope(offers, profile);
+  const scopedUsers = filterByAdminScope(users, profile);
+
+  const filteredOffers = scopedOffers.filter((o) => {
     const matchStatus = offerStatus === 'all' || o.status === offerStatus;
     const q = offerQ.trim().toLowerCase();
     const matchQ =
@@ -194,7 +198,7 @@ export default function Admin() {
     return matchStatus && matchQ;
   });
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = scopedUsers.filter((u) => {
     const q = userQ.trim().toLowerCase();
     if (!q) return true;
     return (
