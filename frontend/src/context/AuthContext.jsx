@@ -156,7 +156,7 @@ export function AuthProvider({ children }) {
       if (newUser?.id) {
         const profileRow = {
           id: newUser.id,
-          name: cleanName,
+          full_name: cleanName,
           phone: cleanPhone,
           department: department || '',
           city: city || '',
