@@ -207,7 +207,8 @@ export function AuthProvider({ children }) {
   // ---------------- Derivados ----------------
 
   const role = profile?.role || null;
-  const isAdmin = profile?.role === 'admin';
+  const ADMIN_ROLES = ['admin', 'super_admin', 'department_admin', 'city_admin'];
+  const isAdmin = ADMIN_ROLES.includes(role);
 
   const userWithProfile = useMemo(() => {
     if (!user) return null;
