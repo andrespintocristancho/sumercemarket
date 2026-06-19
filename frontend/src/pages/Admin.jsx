@@ -633,7 +633,16 @@ function StatusPill({ status }) {
 }
 
 function RolePill({ role }) {
-  const isAdmin = role === 'admin';
+  const ADMIN_ROLES = ['admin', 'super_admin', 'department_admin', 'city_admin'];
+  const roleLabels = {
+    super_admin: '🛡️ Super admin',
+    admin: '🛡️ Admin',
+    department_admin: '🛡️ Admin departamento',
+    city_admin: '🛡️ Admin ciudad',
+    user: 'Usuario'
+  };
+  const isAdmin = ADMIN_ROLES.includes(role);
+  const label = roleLabels[role] || 'Usuario';
   return (
     <span
       style={{
@@ -642,7 +651,7 @@ function RolePill({ role }) {
         color: isAdmin ? '#1e40af' : '#374151'
       }}
     >
-      {isAdmin ? '🛡️ Admin' : 'Usuario'}
+      {label}
     </span>
   );
 }
