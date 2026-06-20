@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { applyAdminScopeToQuery } from '../lib/adminScope';
+// se elimina applyAdminScopeToQuery agregado por PR #32
 
 // ... resto de imports existentes
 
@@ -9,15 +9,12 @@ const Admin = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      let offersQuery = supabase
-        .from('offers')
-        .select('id, title, category, price, city, department, status, created_at, user_id');
-
-      offersQuery = applyAdminScopeToQuery(offersQuery, profile);
-      offersQuery = offersQuery.order('created_at', { ascending: false }).limit(500);
-
       const [offersListRes, usersListRes, statsRes] = await Promise.all([
-        offersQuery,
+        supabase
+          .from('offers')
+          .select('id, title, category, price, city, department, status, created_at, user_id')
+          .order('created_at', { ascending: false })
+          .limit(500),
         supabase.from('users').select('*'),
         supabase.rpc('get_admin_stats'),
       ]);
