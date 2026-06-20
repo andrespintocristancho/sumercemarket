@@ -687,7 +687,7 @@ function mapError(msg) {
   const m = (msg || '').toLowerCase();
   if (m.includes('row-level security') || m.includes('rls') || m.includes('permission')) {
     return 'No tienes permisos para leer estos datos. Verifica las políticas RLS para el rol admin.';
-  }
+    }
   if (m.includes('relation') && m.includes('does not exist')) {
     return 'Falta alguna tabla esperada (profiles, offers, offer_images o contact_events).';
   }
