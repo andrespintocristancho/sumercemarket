@@ -26,6 +26,8 @@
 //   - No modifica los items recibidos (función pura).
 //   - applyAdminScopeToQuery recibe un query builder de Supabase
 //     y devuelve el mismo query con filtros .eq() aplicados.
+//   - applyAdminScopeToQuery usa valores exactos (trim sin lowercase)
+//     porque Supabase .eq() compara valores tal cual están en la base.
 // ---------------------------------------------------------------------------
 
 // -------------------- Utilidad interna --------------------
@@ -37,6 +39,16 @@
 function norm(value) {
   if (value == null) return '';
   return String(value).trim().toLowerCase();
+}
+
+/**
+ * Limpia un string con trim() sin aplicar lowercase.
+ * Para uso en queries Supabase donde se necesita valor exacto.
+ * Retorna cadena vacía si el valor es nulo o indefinido.
+ */
+function clean(value) {
+  if (value == null) return '';
+  return String(value).trim();
 }
 
 // -------------------- Detección de rol --------------------
@@ -154,14 +166,21 @@ export function filterByAdminScope(items, profile) {
  * Aplica filtros territoriales a un query builder de Supabase
  * según el alcance del perfil del administrador.
  *
- * Reutiliza getAdminScope(profile) para determinar el tipo de filtro.
+ * Usa getAdminScope(profile) solo para determinar el tipo de alcance,
+ * pero lee los valores de filtro directamente desde profile con clean()
+ * (trim sin lowercase) porque Supabase .eq() compara valores exactos
+ * tal como están almacenados en la base de datos.
  *
  * Comportamiento:
  *   - global (admin / super_admin) → devuelve query sin filtros adicionales.
- *   - department (department_admin) → aplica .eq('department', ...).
- *   - city (city_admin) → aplica .eq('department', ...).eq('city', ...).
+ *   - department (department_admin) → aplica .eq('department', clean(profile.admin_department)).
+ *   - city (city_admin) → aplica .eq('department', clean(...)).eq('city', clean(...)).
  *   - none (user / null / desconocido) → aplica .eq('id', '__no_access__')
  *     para garantizar resultado vacío sin error de Supabase.
+ *
+ * Seguridad adicional:
+ *   Si department o city están vacíos después de clean(), se aplica
+ *   el filtro de 0 resultados para evitar queries sin restricción.
  *
  * @param {object} query  - Query builder de Supabase (resultado de supabase.from(...).select(...)).
  * @param {object} profile - Perfil del usuario con role, admin_department, admin_city.
@@ -182,13 +201,20 @@ export function applyAdminScopeToQuery(query, profile) {
       // Admin global: sin restricciones territoriales.
       return query;
 
-    case 'department':
-      // Admin de departamento: filtra por departamento asignado.
-      return query.eq('department', scope.department);
+    case 'department': {
+      // Admin de departamento: valor exacto limpio desde profile.
+      const dept = clean(profile.admin_department);
+      if (!dept) return query.eq('id', '__no_access__');
+      return query.eq('department', dept);
+    }
 
-    case 'city':
-      // Admin de ciudad: filtra por departamento Y ciudad asignados.
-      return query.eq('department', scope.department).eq('city', scope.city);
+    case 'city': {
+      // Admin de ciudad: valores exactos limpios desde profile.
+      const dept = clean(profile.admin_department);
+      const city = clean(profile.admin_city);
+      if (!dept || !city) return query.eq('id', '__no_access__');
+      return query.eq('department', dept).eq('city', city);
+    }
 
     case 'none':
     default:
