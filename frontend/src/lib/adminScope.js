@@ -8,7 +8,7 @@
 //   isCityAdmin(profile)            → boolean
 //   getAdminScope(profile)          → { type, department?, city? }
 //   filterByAdminScope(items, profile) → items filtrados
-//   applyAdminScopeToQuery(query, profile) → query con filtros Supabase
+//   applyAdminScopeToQuery(query, profile) → query con filtros territoriales
 //
 // Reglas de alcance:
 //   super_admin / admin       → ve todo (global).
@@ -25,7 +25,7 @@
 //   - No depende de Supabase, React, ni de AuthContext.
 //   - No modifica los items recibidos (función pura).
 //   - applyAdminScopeToQuery recibe un query builder de Supabase
-//     y le aplica .eq() según el alcance, sin ejecutar la query.
+//     y devuelve el mismo query con filtros .eq() aplicados.
 // ---------------------------------------------------------------------------
 
 // -------------------- Utilidad interna --------------------
@@ -106,7 +106,7 @@ export function getAdminScope(profile) {
   return { type: 'none' };
 }
 
-// -------------------- Filtro en memoria --------------------
+// -------------------- Filtro --------------------
 
 /**
  * Filtra un array de items según el alcance territorial del perfil.
@@ -148,54 +148,51 @@ export function filterByAdminScope(items, profile) {
   }
 }
 
-// -------------------- Filtro a nivel de query Supabase --------------------
+// -------------------- Query Builder --------------------
 
 /**
- * Aplica filtros territoriales directamente a un query builder de Supabase.
+ * Aplica filtros territoriales a un query builder de Supabase
+ * según el alcance del perfil del administrador.
  *
- * Recibe el query builder (ej: supabase.from('offers').select('*'))
- * y el perfil del administrador. Retorna el mismo query con los .eq()
- * necesarios según el alcance territorial, SIN ejecutar la query.
+ * Reutiliza getAdminScope(profile) para determinar el tipo de filtro.
  *
- * Alcance aplicado:
- *   - global (admin / super_admin) → query sin filtros adicionales.
- *   - department (department_admin) → .eq('department', profile.admin_department)
- *   - city (city_admin) → .eq('department', ...).eq('city', ...)
- *   - none (user / null / desconocido) → .eq('id', '__no_access__')
- *     (filtro intencionalmente imposible para garantizar 0 resultados).
+ * Comportamiento:
+ *   - global (admin / super_admin) → devuelve query sin filtros adicionales.
+ *   - department (department_admin) → aplica .eq('department', ...).
+ *   - city (city_admin) → aplica .eq('department', ...).eq('city', ...).
+ *   - none (user / null / desconocido) → aplica .eq('id', '__no_access__')
+ *     para garantizar resultado vacío sin error de Supabase.
  *
- * Uso:
- *   import { applyAdminScopeToQuery } from '@/lib/adminScope';
+ * @param {object} query  - Query builder de Supabase (resultado de supabase.from(...).select(...)).
+ * @param {object} profile - Perfil del usuario con role, admin_department, admin_city.
+ * @returns {object} El mismo query builder con los filtros .eq() aplicados.
+ *
+ * Ejemplo de uso:
+ *   import { applyAdminScopeToQuery } from '../lib/adminScope';
  *
  *   let query = supabase.from('offers').select('*');
  *   query = applyAdminScopeToQuery(query, profile);
  *   const { data, error } = await query;
- *
- * @param {object} query   - Supabase query builder (con .eq disponible).
- * @param {object} profile - Perfil del usuario con role, admin_department, admin_city.
- * @returns {object}       - El mismo query builder con filtros aplicados.
  */
 export function applyAdminScopeToQuery(query, profile) {
   const scope = getAdminScope(profile);
 
   switch (scope.type) {
     case 'global':
-      // admin / super_admin → sin restricción territorial.
+      // Admin global: sin restricciones territoriales.
       return query;
 
     case 'department':
-      // department_admin → filtrar por departamento.
-      return query.eq('department', profile.admin_department);
+      // Admin de departamento: filtra por departamento asignado.
+      return query.eq('department', scope.department);
 
     case 'city':
-      // city_admin → filtrar por departamento + ciudad.
-      return query
-        .eq('department', profile.admin_department)
-        .eq('city', profile.admin_city);
+      // Admin de ciudad: filtra por departamento Y ciudad asignados.
+      return query.eq('department', scope.department).eq('city', scope.city);
 
     case 'none':
     default:
-      // user, null o rol desconocido → 0 resultados garantizados.
+      // Sin acceso: filtro imposible que garantiza 0 resultados.
       return query.eq('id', '__no_access__');
   }
 }
