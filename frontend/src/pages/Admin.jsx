@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-// se elimina filterByAdminScope agregado por PR #29
 
 // ... resto de imports existentes
 
@@ -23,9 +22,7 @@ const Admin = () => {
     };
 
     fetchData();
-  }, [profile]);
-
-  // Restauramos filtros visuales globales sin scoped variables
+  }, []);
 
   const filteredOffers = offers.filter((o) => {
     const matchStatus = offerStatus === 'all' || o.status === offerStatus;
